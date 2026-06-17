@@ -1,0 +1,15 @@
+{
+  "Name": "Lookup Anything Mobile Search",
+  "Author": "olvace36",
+  "Version": "1.0.0",
+  "Description": "Replaces Lookup Anything's search menu with a mobile-friendly UI.",
+  "UniqueID": "olvace36.LookupAnythingMobileSearch",
+  "EntryDll": "LookupAnythingMobileSearch.dll",
+  "MinimumApiVersion": "4.0.0",
+  "Dependencies": [
+    {
+      "UniqueID": "Pathoschild.LookupAnything",
+      "IsRequired": true
+    }
+  ]
+}
