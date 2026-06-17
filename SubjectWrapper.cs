@@ -1,3 +1,4 @@
+
 using System;
 using System.Reflection;
 using Microsoft.Xna.Framework;
@@ -12,6 +13,7 @@ namespace LookupAnythingMobileSearch.Framework
         private readonly PropertyInfo? _descriptionProperty;
         private readonly PropertyInfo? _typeProperty;
         private readonly MethodInfo? _drawPortraitMethod;
+        private readonly string _className;
 
         public object RawSubject => _subject;
         public string Name { get; }
@@ -22,6 +24,8 @@ namespace LookupAnythingMobileSearch.Framework
         private SubjectWrapper(object subject)
         {
             _subject = subject;
+            _className = subject.GetType().FullName ?? "";
+
             var type = subject.GetType();
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             _nameProperty = type.GetProperty("Name", flags);
@@ -31,7 +35,7 @@ namespace LookupAnythingMobileSearch.Framework
 
             Name = GetValue<string>(_nameProperty) ?? "Unknown";
             Description = GetValue<string>(_descriptionProperty) ?? "";
-            SubjectType = GetValue<string>(_typeProperty) ?? "Other";
+            SubjectType = GetValue<string>(_typeProperty) ?? "";
             IsValid = _nameProperty != null;
         }
 
@@ -51,17 +55,13 @@ namespace LookupAnythingMobileSearch.Framework
 
         public string GetCategory()
         {
-            return SubjectType?.ToLowerInvariant() switch
-            {
-                "villager" or "npc" or "pet" or "character" or "child" or "player" or "farmer" => "NPCs",
-                "clothing" or "hat" or "boots" or "object" or "weapon" or "item" or "tool" or "ring" => "Items",
-                "fruittree" or "crop" or "tree" or "bush" => "Crops",
-                "building" or "structure" => "Buildings",
-                "terrainfeature" or "resourceclump" => "Terrain",
-                "creature" or "monster" => "Monsters",
-                "animal" or "farmanimals" => "Animals",
-                _ => "Other"
-            };
+            if (_className.Contains("CharacterSubject")) return "NPCs";
+            if (_className.Contains("ItemSubject")) return "Items";
+            if (_className.Contains("BuildingSubject")) return "Buildings";
+            if (_className.Contains("CropSubject") || _className.Contains("FruitTreeSubject") || _className.Contains("WildTreeSubject")) return "Crops";
+            if (_className.Contains("TerrainFeature") || _className.Contains("BushSubject")) return "Terrain";
+            if (_className.Contains("FarmAnimal")) return "Animals";
+            return "Other";
         }
 
         public static SubjectWrapper? Create(object? subject)
