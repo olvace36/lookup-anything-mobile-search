@@ -20,13 +20,13 @@ jobs:
           dotnet-version: '6.0.x'
 
       - name: Build
-        run: dotnet build LookupAnythingMobileSearch/LookupAnythingMobileSearch.csproj --configuration Release
+        run: dotnet build LookupAnythingMobileSearch.csproj --configuration Release
 
       - name: Package mod
         run: |
           mkdir -p output/LookupAnythingMobileSearch
-          cp LookupAnythingMobileSearch/bin/Release/net6.0/LookupAnythingMobileSearch.dll output/LookupAnythingMobileSearch/
-          cp LookupAnythingMobileSearch/manifest.json output/LookupAnythingMobileSearch/
+          cp bin/Release/net6.0/LookupAnythingMobileSearch.dll output/LookupAnythingMobileSearch/
+          cp manifest.json output/LookupAnythingMobileSearch/
           cd output && zip -r LookupAnythingMobileSearch.zip LookupAnythingMobileSearch/
 
       - name: Upload artifact
