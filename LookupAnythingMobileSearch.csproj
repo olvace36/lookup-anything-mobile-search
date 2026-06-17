@@ -3,7 +3,7 @@
   <PropertyGroup>
     <AssemblyName>LookupAnythingMobileSearch</AssemblyName>
     <RootNamespace>LookupAnythingMobileSearch</RootNamespace>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>false</ImplicitUsings>
     <Platforms>x86</Platforms>
