@@ -4,6 +4,7 @@ using System.Linq;
 using LookupAnythingMobileSearch.Framework;
 using LookupAnythingMobileSearch.UI;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -89,6 +90,97 @@ namespace LookupAnythingMobileSearch
             Monitor.Log("LookupAnything Mobile Search ready! ✓", LogLevel.Info);
         }
 
+        // Some monster names don't have their own "Characters\Monsters\{name}"
+        // texture - either because they're a vanilla reskin of another
+        // monster (recolored by code, not a separate file), or because a
+        // mod stores its sprites under a completely different convention.
+        // Hand-mapped by inspecting the actual asset files - there's no
+        // general way to detect this automatically.
+        //
+        // Value starting with "@" is a full absolute asset path to use
+        // as-is; otherwise it's "use this OTHER monster's standard texture".
+        private static readonly Dictionary<string, string> TextureAliases = new()
+        {
+            // Vanilla monsters that share another monster's texture
+            ["Frost Jelly"] = "Green Slime",
+            ["Sludge"] = "Green Slime",
+            ["Shadow Guy"] = "Shadow Brute",
+            ["Skeleton Warrior"] = "Skeleton",
+
+            // Sword & Sorcery (Deep Dark dungeon) - confirmed directly from
+            // the mod's own SpaceCore spawner definitions
+            // (MonsterTextureOverride field in Dungeon.json).
+            // Stygium monsters that use the default 16x24 frame size as-is
+            ["Stygium Crab"] = "@Monsters/DN.SnS/StygiumCrab",
+            ["Stygium Golem"] = "@Monsters/DN.SnS/StygiumGolem_Purple",
+            ["Stygium Golem (Blue)"] = "@Monsters/DN.SnS/StygiumGolem_Blue",
+            ["Stygium Bat"] = "@Monsters/DN.SnS/StygiumBat",
+            ["Stygium Skull"] = "@Monsters/DN.SnS/StygiumSkull",
+            ["Stygium False Mushroom"] = "@Monsters/DN.SnS/StygiumMushroom",
+            ["Stygium Droplet"] = "@Monsters/DN.SnS/StygiumDroplet",
+            // Stygium Skeleton, Party Skeleton, Miner, Miner Mage, Head,
+            // Serpent, Leviathan, Rex, Squid moved to TextureAliasesSized
+            // below - they need a non-default frame size.
+            // Duskspire Behemoth/Remnant and a few reskin frames
+            // (StygiumLurk, StygiumSentry, Stygium_Duggy,
+            // StygiumMushroom_Duggy) aren't spawned via this table, so their
+            // real monster-name mapping is still unconfirmed - left out.
+        };
+
+        // Same as TextureAliases, but for entries needing a non-standard
+        // frame size (the alias path, frame width, frame height).
+        private static readonly Dictionary<string, (string Path, int Width, int Height)> TextureAliasesSized = new()
+        {
+            // Sword & Sorcery's Duskspire boss ships its own 96x96 sprite as
+            // a mod-internal asset rather than through Content Patcher, so
+            // the path depends on the mod's exact UniqueID - best guess from
+            // context (DestyNova is the credited CP author); safe no-op via
+            // DoesAssetExist below if this guess is wrong.
+            ["Duskspire Behemoth"] = ("Mods/DestyNova.SwordAndSorcery/assets/duskspire-behemoth.png", 96, 96),
+
+            // Stygium monsters that use a MonsterType whose frame size
+            // differs from the default 16x24 (confirmed from each vanilla
+            // type's own constructor: Skeleton=16x32, MetalHead=16x16,
+            // Serpent=32x32, DinoMonster=32x32, BlueSquid=24x24).
+            ["Stygium Skeleton"] = ("Monsters/DN.SnS/StygiumSkeleton", 16, 32),
+            ["Stygium Party Skeleton"] = ("Monsters/DN.SnS/StygiumSkeleton_Rare", 16, 32),
+            ["Stygium Miner"] = ("Monsters/DN.SnS/StygiumMiner", 16, 32),
+            ["Stygium Miner Mage"] = ("Monsters/DN.SnS/StygiumMiner_Mage", 16, 32),
+            ["Stygium Head"] = ("Monsters/DN.SnS/StygiumHead", 16, 16),
+            ["Stygium Serpent"] = ("Monsters/DN.SnS/StygiumSerpent", 32, 32),
+            ["Stygium Leviathan"] = ("Monsters/DN.SnS/StygiumLeviathan", 32, 32),
+            ["Stygium Rex"] = ("Monsters/DN.SnS/StygiumRex", 32, 32),
+            ["Stygium Squid"] = ("Monsters/DN.SnS/StygiumSquid", 24, 24),
+        };
+
+        // Tries to fix up a freshly-built fake monster's sprite using the
+        // alias tables above. Safe no-op if there's no alias or the aliased
+        // asset doesn't exist either.
+        private void TryFixMonsterTexture(Monster fake, string monsterName)
+        {
+            try
+            {
+                if (TextureAliasesSized.TryGetValue(monsterName, out var sized))
+                {
+                    if (Game1.content.DoesAssetExist<Texture2D>(sized.Path)) {
+                        fake.Sprite = new AnimatedSprite(sized.Path, 0, sized.Width, sized.Height);
+                    }
+                    return;
+                }
+                if (!TextureAliases.TryGetValue(monsterName, out string? alias)) {
+                    return;
+                }
+                string path = alias.StartsWith("@") ? alias.Substring(1) : "Characters\\Monsters\\" + alias;
+                if (Game1.content.DoesAssetExist<Texture2D>(path)) {
+                    fake.Sprite = new AnimatedSprite(path);
+                }
+            }
+            catch
+            {
+                // leave the original (possibly blank) sprite as-is
+            }
+        }
+
         // Monsters aren't in Lookup Anything's own searchable subject list at
         // all (it only ever builds a monster's info page from a live instance
         // you're actually looking at). We build a throwaway generic Monster
@@ -112,10 +204,7 @@ namespace LookupAnythingMobileSearch
                 try
                 {
                     Monster fake = new(name, Vector2.Zero);
-                    // TEMP DIAGNOSTIC: compare texture load state across monsters
-                    // to figure out why some portraits render blank.
-                    var tex = fake.Sprite?.Texture;
-                    Monitor.Log($"Monster '{name}': texture={(tex == null ? "NULL" : $"{tex.Width}x{tex.Height}")}, spriteW={fake.Sprite?.SpriteWidth}, spriteH={fake.Sprite?.SpriteHeight}", LogLevel.Debug);
+                    TryFixMonsterTexture(fake, name);
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
                         result.Add(subject);
@@ -166,4 +255,3 @@ namespace LookupAnythingMobileSearch
         }
     }
 }
-
