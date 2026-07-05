@@ -112,6 +112,10 @@ namespace LookupAnythingMobileSearch
                 try
                 {
                     Monster fake = new(name, Vector2.Zero);
+                    // TEMP DIAGNOSTIC: compare texture load state across monsters
+                    // to figure out why some portraits render blank.
+                    var tex = fake.Sprite?.Texture;
+                    Monitor.Log($"Monster '{name}': texture={(tex == null ? "NULL" : $"{tex.Width}x{tex.Height}")}, spriteW={fake.Sprite?.SpriteWidth}, spriteH={fake.Sprite?.SpriteHeight}", LogLevel.Debug);
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
                         result.Add(subject);
@@ -162,3 +166,4 @@ namespace LookupAnythingMobileSearch
         }
     }
 }
+
