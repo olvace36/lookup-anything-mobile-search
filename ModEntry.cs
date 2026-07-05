@@ -8,16 +8,60 @@ using StardewValley;
 
 namespace LookupAnythingMobileSearch
 {
-    public class ModEntry : Mod
+    // Exposed via GetApi() so other mods (e.g. BirthdayRolodex) can open the
+    // Lookup Anything viewer for a specific NPC directly, without needing a
+    // project reference. SMAPI's GetApi<T> matches by method signature, so
+    // the caller just needs a same-shaped interface of its own.
+    public interface ILookupAnythingMobileSearchApi
+    {
+        /// <summary>Open the Lookup Anything viewer for the NPC with the
+        /// given internal (unlocalized) name. Returns false if the NPC
+        /// isn't found or Lookup Anything didn't report a matching search
+        /// subject for it.</summary>
+        bool ShowNpcByName(string npcInternalName);
+    }
+
+    public class ModEntry : Mod, ILookupAnythingMobileSearchApi
     {
         private LookupAnythingBridge? _bridge;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
         private const string SearchMenuClassName = "SearchMenu";
 
+        public override object? GetApi() => this;
+
         public override void Entry(IModHelper helper)
         {
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+        }
+
+        public bool ShowNpcByName(string npcInternalName)
+        {
+            if (_bridge == null || !_bridge.IsValid) {
+                return false;
+            }
+            NPC? npc = Game1.getCharacterFromName(npcInternalName);
+            if (npc == null) {
+                Monitor.Log($"ShowNpcByName: no NPC found named '{npcInternalName}'", LogLevel.Warn);
+                return false;
+            }
+            string displayName = npc.displayName;
+
+            var subjects = _bridge.GetSearchSubjects();
+            if (subjects == null) {
+                return false;
+            }
+            foreach (var raw in subjects)
+            {
+                var wrapped = SubjectWrapper.Create(raw);
+                if (wrapped == null) continue;
+                if (wrapped.GetCategory() == "NPCs" && wrapped.Name == displayName)
+                {
+                    return _bridge.ShowLookupFor(wrapped.RawSubject);
+                }
+            }
+            Monitor.Log($"ShowNpcByName: no matching search subject for '{displayName}'", LogLevel.Warn);
+            return false;
         }
 
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
@@ -76,3 +120,4 @@ namespace LookupAnythingMobileSearch
         }
     }
 }
+
