@@ -14,6 +14,7 @@ namespace LookupAnythingMobileSearch.Framework
         private readonly PropertyInfo? _typeProperty;
         private readonly MethodInfo? _drawPortraitMethod;
         private readonly string _className;
+        private readonly bool _isMonster;
 
         public object RawSubject => _subject;
         public string Name { get; }
@@ -32,6 +33,13 @@ namespace LookupAnythingMobileSearch.Framework
             _descriptionProperty = type.GetProperty("Description", flags);
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
+
+            // CharacterSubject is used for both villager NPCs and monsters -
+            // className alone can't tell them apart. It keeps the actual
+            // SubjectType enum value in a private "TargetType" field, which
+            // is locale-independent (unlike the translated Type string).
+            FieldInfo? targetTypeField = type.GetField("TargetType", flags);
+            _isMonster = targetTypeField?.GetValue(subject)?.ToString() == "Monster";
 
             Name = GetValue<string>(_nameProperty) ?? "Unknown";
             Description = GetValue<string>(_descriptionProperty) ?? "";
@@ -55,6 +63,7 @@ namespace LookupAnythingMobileSearch.Framework
 
         public string GetCategory()
         {
+            if (_isMonster) return "Monsters";
             if (_className.Contains("CharacterSubject")) return "NPCs";
             if (_className.Contains("ItemSubject")) return "Items";
             if (_className.Contains("BuildingSubject")) return "Buildings";
