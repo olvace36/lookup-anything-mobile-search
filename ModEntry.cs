@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LookupAnythingMobileSearch.Framework;
 using LookupAnythingMobileSearch.UI;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewValley.Monsters;
 
 namespace LookupAnythingMobileSearch
 {
@@ -24,6 +27,7 @@ namespace LookupAnythingMobileSearch
     public class ModEntry : Mod, ILookupAnythingMobileSearchApi
     {
         private LookupAnythingBridge? _bridge;
+        private List<object>? _monsterSubjectsCache;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
         private const string SearchMenuClassName = "SearchMenu";
@@ -85,6 +89,44 @@ namespace LookupAnythingMobileSearch
             Monitor.Log("LookupAnything Mobile Search ready! ✓", LogLevel.Info);
         }
 
+        // Monsters aren't in Lookup Anything's own searchable subject list at
+        // all (it only ever builds a monster's info page from a live instance
+        // you're actually looking at). We build a throwaway generic Monster
+        // for every known monster name (Data/Monsters, via the same data
+        // Lookup Anything already parses) purely to hand to its real subject
+        // factory, so the resulting page looks and works exactly like
+        // looking up a monster you encountered in the field.
+        private List<object> GetMonsterSubjects()
+        {
+            if (_monsterSubjectsCache != null) {
+                return _monsterSubjectsCache;
+            }
+            var result = new List<object>();
+            List<string>? names = _bridge?.GetMonsterNames();
+            if (names == null) {
+                _monsterSubjectsCache = result;
+                return result;
+            }
+            foreach (string name in names.Distinct())
+            {
+                try
+                {
+                    Monster fake = new(name, Vector2.Zero);
+                    object? subject = _bridge!.GetSubjectFor(fake);
+                    if (subject != null) {
+                        result.Add(subject);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Skipped monster '{name}' (couldn't build a preview instance): {ex.Message}", LogLevel.Trace);
+                }
+            }
+            Monitor.Log($"Built {result.Count} monster subjects for search.", LogLevel.Debug);
+            _monsterSubjectsCache = result;
+            return result;
+        }
+
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (_bridge == null) return;
@@ -109,7 +151,7 @@ namespace LookupAnythingMobileSearch
                 Game1.activeClickableMenu = new MobileSearchMenu(subjects, subject =>
                 {
                     _bridge.ShowLookupFor(subject);
-                });
+                }, GetMonsterSubjects);
 
                 Monitor.Log("Opened MobileSearchMenu", LogLevel.Debug);
             }
@@ -120,4 +162,3 @@ namespace LookupAnythingMobileSearch
         }
     }
 }
-
