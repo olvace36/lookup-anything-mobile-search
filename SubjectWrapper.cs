@@ -13,6 +13,7 @@ namespace LookupAnythingMobileSearch.Framework
         private readonly PropertyInfo? _descriptionProperty;
         private readonly PropertyInfo? _typeProperty;
         private readonly MethodInfo? _drawPortraitMethod;
+        private readonly PropertyInfo? _targetProperty;
         private readonly string _className;
         private readonly bool _isMonster;
 
@@ -33,6 +34,7 @@ namespace LookupAnythingMobileSearch.Framework
             _descriptionProperty = type.GetProperty("Description", flags);
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
+            _targetProperty = type.GetProperty("Target", flags);
 
             // CharacterSubject is used for both villager NPCs and monsters -
             // className alone can't tell them apart. It keeps the actual
@@ -56,6 +58,48 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
+            // Lookup Anything's own DrawPortrait scales monsters by
+            // (size.X / frameWidth) only, assuming a roughly square frame.
+            // Most monster frames are taller than wide (e.g. 16x32), so at
+            // our square icon size that overflows below the box. Draw it
+            // ourselves instead, scaling to fit both dimensions.
+            if (_isMonster && _targetProperty != null)
+            {
+                try
+                {
+                    if (_targetProperty.GetValue(_subject) is StardewValley.Character target && target.Sprite != null)
+                    {
+                        var sprite = target.Sprite;
+                        // GreenSlime (and its recolored family - Frost Jelly,
+                        // Sludge, Tiger Slime) doesn't use the generic sprite
+                        // frame system at all - it has its own custom draw()
+                        // with a fixed, hand-picked source rect for its
+                        // resting pose. Using the generic frame math for it
+                        // slices the wrong part of the texture entirely.
+                        Rectangle sourceRect = sprite.SourceRect;
+                        int frameW = sprite.SpriteWidth;
+                        int frameH = sprite.SpriteHeight;
+                        if (target is StardewValley.Monsters.GreenSlime)
+                        {
+                            sourceRect = new Rectangle(32, 120, 16, 24);
+                            frameW = 16;
+                            frameH = 24;
+                        }
+                        float scale = Math.Min(size.X / frameW, size.Y / frameH);
+                        float drawWidth = frameW * scale;
+                        float drawHeight = frameH * scale;
+                        // Center within the requested box so narrower/shorter
+                        // sprites don't hug one corner.
+                        var centeredPos = new Vector2(
+                                position.X + (size.X - drawWidth) / 2f,
+                                position.Y + (size.Y - drawHeight) / 2f);
+                        b.Draw(sprite.Texture, centeredPos, sourceRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                        return true;
+                    }
+                }
+                catch { /* fall through to the default method below */ }
+            }
+
             if (_drawPortraitMethod == null) return false;
             try { _drawPortraitMethod.Invoke(_subject, new object[] { b, position, size }); return true; }
             catch { return false; }
