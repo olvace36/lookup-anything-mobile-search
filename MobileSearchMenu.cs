@@ -17,11 +17,17 @@ namespace LookupAnythingMobileSearch.UI
         // Layout constants
         private const int PADDING = 16;
         private const int SEARCH_BOX_HEIGHT = 52;
+        private const int SORT_BUTTON_WIDTH = 84;
         private const int CATEGORY_HEIGHT = 44;
+        private const int SUBCATEGORY_HEIGHT = 30;
         private const int ITEM_HEIGHT = 80;
+        private const int GROUP_HEADER_HEIGHT = 28;
         private const int SCROLLBAR_WIDTH = 12;
         private const float TAP_THRESHOLD = 20f;
         private const int BATCH_SIZE = 50;
+        private const int STAR_SIZE = 28;
+
+        private enum SortMode { NameAsc, NameDesc, ByCategory, ByMod }
 
         private class CategoryButton
         {
@@ -30,12 +36,21 @@ namespace LookupAnythingMobileSearch.UI
             public bool IsSelected { get; set; }
         }
 
+        // A visible row is either a group header (string) or an actual
+        // result (SubjectWrapper) - kept as one flat list so scrolling math
+        // stays simple (each row still has one height, just two heights).
+        private abstract class Row { public abstract int Height { get; } }
+        private class HeaderRow : Row { public string Text = ""; public override int Height => GROUP_HEADER_HEIGHT; }
+        private class ItemRow : Row { public SubjectWrapper Subject = null!; public override int Height => ITEM_HEIGHT; }
+
         private readonly bool _isAndroid = (int)Constants.TargetPlatform == 0;
         private List<object> _rawSubjects;
         private readonly List<SubjectWrapper> _wrapped = new();
-        private List<SubjectWrapper> _filtered = new();
+        private List<Row> _rows = new();
         private readonly Action<object> _onSelect;
         private readonly Func<List<object>>? _monsterProvider;
+        private readonly PersistenceManager? _persistence;
+        private readonly Action? _onExplicitClose;
         private bool _monstersLoaded;
 
         private int _wrapIndex;
@@ -44,9 +59,13 @@ namespace LookupAnythingMobileSearch.UI
 
         private readonly List<CategoryButton> _categories = new();
         private string _currentCategory = "All";
+        private readonly List<CategoryButton> _subCategories = new();
+        private string _currentSubCategory = "All";
+        private SortMode _sortMode = SortMode.NameAsc;
 
         private TextBox _searchBox = null!;
         private Rectangle _searchBoxBounds;
+        private Rectangle _sortButtonBounds;
         private ClickableTextureComponent _searchIcon = null!;
         private ClickableTextureComponent _clearButton = null!;
         private ClickableTextureComponent _closeButton = null!;
@@ -64,16 +83,25 @@ namespace LookupAnythingMobileSearch.UI
         private float _dragDist;
 
         private Rectangle _categoryArea;
+        private Rectangle _subCategoryArea;
         private Rectangle _resultsArea;
         private Rectangle _scrollbarArea;
-        private int _maxVisible;
 
-        public MobileSearchMenu(IEnumerable<object> subjects, Action<object> onSelect, Func<List<object>>? monsterProvider = null)
+        // Pseudo-categories that pull from persisted lists instead of
+        // "everything that matches this SubjectWrapper property".
+        private const string CAT_FAVORITES = "Favorites";
+        private const string CAT_RECENT = "Recent";
+
+        public MobileSearchMenu(IEnumerable<object> subjects, Action<object> onSelect,
+                Func<List<object>>? monsterProvider = null, PersistenceManager? persistence = null,
+                Action? onExplicitClose = null)
             : base(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height, false)
         {
             _onSelect = onSelect;
             _rawSubjects = subjects.ToList();
             _monsterProvider = monsterProvider;
+            _persistence = persistence;
+            _onExplicitClose = onExplicitClose;
 
             if (_isAndroid) CacheKeyboardMethods();
             CalculateLayout();
@@ -101,13 +129,15 @@ namespace LookupAnythingMobileSearch.UI
             int cw = width - PADDING * 2 - SCROLLBAR_WIDTH - 8;
             int cy = yPositionOnScreen + PADDING + 40;
 
-            _searchBoxBounds = new Rectangle(cx + 20, cy, cw - 56, SEARCH_BOX_HEIGHT);
-            cy += SEARCH_BOX_HEIGHT + 16;
+            _searchBoxBounds = new Rectangle(cx + 20, cy, cw - 56 - SORT_BUTTON_WIDTH - 8, SEARCH_BOX_HEIGHT);
+            _sortButtonBounds = new Rectangle(_searchBoxBounds.Right + 8, cy, SORT_BUTTON_WIDTH, SEARCH_BOX_HEIGHT);
+            cy += SEARCH_BOX_HEIGHT + 12;
             _categoryArea = new Rectangle(cx, cy, cw, CATEGORY_HEIGHT);
-            cy += CATEGORY_HEIGHT + 16;
+            cy += CATEGORY_HEIGHT + 6;
+            _subCategoryArea = new Rectangle(cx, cy, cw, SUBCATEGORY_HEIGHT);
+            cy += SUBCATEGORY_HEIGHT + 10;
             _resultsArea = new Rectangle(cx + 14, cy, cw - 20, yPositionOnScreen + height - cy - PADDING - 24);
             _scrollbarArea = new Rectangle(_resultsArea.Right + 8, _resultsArea.Y, SCROLLBAR_WIDTH, _resultsArea.Height);
-            _maxVisible = _resultsArea.Height / ITEM_HEIGHT;
         }
 
         private void CreateComponents()
@@ -135,7 +165,7 @@ namespace LookupAnythingMobileSearch.UI
                 new Rectangle(xPositionOnScreen + width - 56 - 8, yPositionOnScreen + 8, 56, 56),
                 Game1.mouseCursors, new Rectangle(337, 494, 12, 12), 4.667f);
 
-            RebuildCategoryButtons(new List<string> { "All", "Items", "NPCs", "Monsters", "Buildings" });
+            RebuildCategoryButtons(new List<string> { "All", "Items", "NPCs", "Monsters", "Buildings", CAT_FAVORITES, CAT_RECENT });
         }
 
         private void RebuildCategoryButtons(List<string> cats)
@@ -155,11 +185,57 @@ namespace LookupAnythingMobileSearch.UI
             }
         }
 
+        private void RebuildSubCategoryButtons()
+        {
+            _subCategories.Clear();
+            if (_currentCategory == "All" || _currentCategory == CAT_FAVORITES || _currentCategory == CAT_RECENT)
+                return;
+
+            var subs = _wrapped
+                    .Where(s => s.GetCategory() == _currentCategory)
+                    .Select(s => s.GetSubCategory())
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Distinct()
+                    .OrderBy(s => s)
+                    .ToList();
+            if (subs.Count == 0) return;
+
+            var list = new List<string> { "All" };
+            list.AddRange(subs);
+            if (!list.Contains(_currentSubCategory)) _currentSubCategory = "All";
+
+            int btnW = Math.Max(50, (_subCategoryArea.Width - (list.Count - 1) * 4) / list.Count);
+            int x = _subCategoryArea.X;
+            foreach (var sub in list)
+            {
+                _subCategories.Add(new CategoryButton
+                {
+                    Bounds = new Rectangle(x, _subCategoryArea.Y, btnW, SUBCATEGORY_HEIGHT),
+                    Category = sub,
+                    IsSelected = sub == _currentSubCategory
+                });
+                x += btnW + 4;
+            }
+        }
+
         // ──────────────── Input ────────────────
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
-            if (_closeButton.containsPoint(x, y)) { exitThisMenu(); return; }
+            if (_closeButton.containsPoint(x, y))
+            {
+                _onExplicitClose?.Invoke();
+                exitThisMenu();
+                return;
+            }
+
+            if (_sortButtonBounds.Contains(x, y))
+            {
+                _sortMode = (SortMode)(((int)_sortMode + 1) % 4);
+                _needsFilter = true;
+                if (playSound) Game1.playSound("smallSelect");
+                return;
+            }
 
             if (_searchBoxBounds.Contains(x, y))
             {
@@ -184,19 +260,36 @@ namespace LookupAnythingMobileSearch.UI
             foreach (var btn in _categories)
             {
                 if (!btn.Bounds.Contains(x, y)) continue;
-                if (_currentCategory == btn.Category) return;
-                _currentCategory = btn.Category;
-                foreach (var b2 in _categories) b2.IsSelected = b2.Category == _currentCategory;
-                if (btn.Category == "Monsters") {
-                    EnsureMonstersLoaded();
+                if (_currentCategory != btn.Category)
+                {
+                    _currentCategory = btn.Category;
+                    _currentSubCategory = "All";
+                    foreach (var b2 in _categories) b2.IsSelected = b2.Category == _currentCategory;
+                    if (btn.Category == "Monsters") EnsureMonstersLoaded();
+                    RebuildSubCategoryButtons();
+                    _needsFilter = true;
+                    if (playSound) Game1.playSound("smallSelect");
                 }
-                _needsFilter = true;
-                if (playSound) Game1.playSound("smallSelect");
+                return;
+            }
+
+            foreach (var btn in _subCategories)
+            {
+                if (!btn.Bounds.Contains(x, y)) continue;
+                if (_currentSubCategory != btn.Category)
+                {
+                    _currentSubCategory = btn.Category;
+                    foreach (var b2 in _subCategories) b2.IsSelected = b2.Category == _currentSubCategory;
+                    _needsFilter = true;
+                    if (playSound) Game1.playSound("smallSelect");
+                }
                 return;
             }
 
             if (_resultsArea.Contains(x, y))
             {
+                // Star tap zone check happens on release (tap, not drag) -
+                // just start tracking the potential drag/tap here.
                 _dragging = true;
                 _dragStart = _lastDrag = new Vector2(x, y);
                 _dragDist = 0;
@@ -233,44 +326,63 @@ namespace LookupAnythingMobileSearch.UI
                 if (_searchBox.Selected && !string.IsNullOrEmpty(_searchBox.Text))
                 { _searchBox.Text = ""; DeselectSearch(); }
                 else if (_searchBox.Selected) DeselectSearch();
-                else exitThisMenu();
+                else { _onExplicitClose?.Invoke(); exitThisMenu(); }
             }
         }
 
         // ──────────────── Lazy monster loading ────────────────
 
-        // Building monster preview subjects is the expensive part (each one
-        // constructs a throwaway Monster + its Lookup Anything subject), so
-        // it only happens the first time the player actually opens the
-        // Monsters tab, not every time this menu opens or the game loads.
         private void EnsureMonstersLoaded()
         {
-            if (_monstersLoaded || _monsterProvider == null) {
-                return;
-            }
+            if (_monstersLoaded || _monsterProvider == null) return;
             _monstersLoaded = true;
             List<object> monsters = _monsterProvider.Invoke() ?? new List<object>();
-            if (monsters.Count == 0) {
-                return;
-            }
+            if (monsters.Count == 0) return;
             _rawSubjects = _rawSubjects.Concat(monsters).ToList();
-            // Resume the existing incremental wrapper so the new entries get
-            // spread across frames like everything else, instead of
-            // wrapping all of them in one go.
             _fullyLoaded = false;
         }
 
         private void TrySelect(int x, int y)
         {
             if (!_resultsArea.Contains(x, y)) return;
-            int idx = (y - _resultsArea.Y + (int)_scroll) / ITEM_HEIGHT;
-            if (idx >= 0 && idx < _filtered.Count)
+
+            // Star tap zone: right-hand edge of each item row.
+            var (row, rowBounds) = FindRowAt(y);
+            if (row is ItemRow itemRow && _persistence != null)
             {
-                var subject = _filtered[idx];
-                exitThisMenu(false);
-                Game1.playSound("select");
-                _onSelect?.Invoke(subject.RawSubject);
+                var starRect = StarBounds(rowBounds);
+                if (starRect.Contains(x, y))
+                {
+                    _persistence.ToggleFavorite(itemRow.Subject.InternalName);
+                    Game1.playSound("coin");
+                    if (_currentCategory == CAT_FAVORITES) _needsFilter = true;
+                    return;
+                }
             }
+
+            if (row is ItemRow ir)
+            {
+                _persistence?.RecordViewed(ir.Subject.InternalName);
+                Game1.playSound("select");
+                _onSelect?.Invoke(ir.Subject.RawSubject);
+            }
+        }
+
+        private (Row? row, Rectangle bounds) FindRowAt(int y)
+        {
+            float acc = -_scroll;
+            foreach (var row in _rows)
+            {
+                var bounds = new Rectangle(_resultsArea.X, _resultsArea.Y + (int)acc, _resultsArea.Width, row.Height);
+                if (y >= bounds.Y && y < bounds.Bottom) return (row, bounds);
+                acc += row.Height;
+            }
+            return (null, Rectangle.Empty);
+        }
+
+        private static Rectangle StarBounds(Rectangle rowBounds)
+        {
+            return new Rectangle(rowBounds.Right - STAR_SIZE - 10, rowBounds.Y + (rowBounds.Height - STAR_SIZE) / 2, STAR_SIZE, STAR_SIZE);
         }
 
         // ──────────────── Search box ────────────────
@@ -319,8 +431,8 @@ namespace LookupAnythingMobileSearch.UI
             if (_wrapIndex >= _rawSubjects.Count)
             {
                 _fullyLoaded = true;
-                _wrapped.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
                 UpdateCategoryButtons();
+                RebuildSubCategoryButtons();
             }
             _needsFilter = true;
         }
@@ -328,58 +440,166 @@ namespace LookupAnythingMobileSearch.UI
         private void UpdateCategoryButtons()
         {
             var cats = _wrapped.Select(s => s.GetCategory()).Distinct().ToList();
-            // Monsters load lazily (only once the player taps this tab), so
-            // they're never in _wrapped yet at this point - add the tab
-            // manually or it could never be reached in the first place.
-            if (_monsterProvider != null && !cats.Contains("Monsters")) {
-                cats.Add("Monsters");
-            }
+            if (_monsterProvider != null && !cats.Contains("Monsters")) cats.Add("Monsters");
             cats.Sort();
 
             var list = new List<string> { "All" };
             list.AddRange(cats);
-            // Keep "All" and "Monsters" even if the cap would otherwise
-            // drop them - trim from the other categories instead.
-            if (list.Count > 6)
-            {
-                var protectedCats = new HashSet<string> { "All", "Monsters" };
-                var trimmed = list.Where(c => protectedCats.Contains(c)).ToList();
-                trimmed.AddRange(list.Where(c => !protectedCats.Contains(c)).Take(6 - trimmed.Count));
-                list = trimmed;
-            }
+            list.Add(CAT_FAVORITES);
+            list.Add(CAT_RECENT);
             RebuildCategoryButtons(list);
         }
 
+        // ──────────────── Filtering / sorting / grouping ────────────────
+
         private void ApplyFilter()
         {
-            string q = (_searchBox.Text ?? "").Trim().ToLowerInvariant();
-            _filtered = _wrapped.Where(s =>
-            {
-                if (_currentCategory != "All" && s.GetCategory() != _currentCategory) return false;
-                return string.IsNullOrEmpty(q) || s.Name.ToLowerInvariant().Contains(q) || s.Description.ToLowerInvariant().Contains(q);
-            }).ToList();
+            string q = (_searchBox.Text ?? "").Trim();
+            string qLower = q.ToLowerInvariant();
 
-            if (!string.IsNullOrEmpty(q))
-                _filtered = _filtered.OrderBy(s => !s.Name.ToLowerInvariant().StartsWith(q)).ThenBy(s => s.Name).ToList();
+            IEnumerable<SubjectWrapper> source;
+            if (_currentCategory == CAT_FAVORITES)
+            {
+                var favs = _persistence?.Favorites ?? Array.Empty<string>() as IReadOnlyList<string>;
+                var favSet = new HashSet<string>(favs);
+                source = _wrapped.Where(s => favSet.Contains(s.InternalName));
+            }
+            else if (_currentCategory == CAT_RECENT)
+            {
+                var recent = _persistence?.RecentlyViewed ?? Array.Empty<string>() as IReadOnlyList<string>;
+                var byId = _wrapped.ToDictionary(s => s.InternalName, s => s, StringComparer.Ordinal);
+                source = recent.Select(id => byId.TryGetValue(id, out var s) ? s : null).Where(s => s != null)!;
+            }
+            else
+            {
+                source = _wrapped.Where(s => _currentCategory == "All" || s.GetCategory() == _currentCategory);
+                if (_currentSubCategory != "All")
+                    source = source.Where(s => s.GetSubCategory() == _currentSubCategory);
+            }
+
+            List<SubjectWrapper> filtered = source.Where(s => MatchesSearch(s, qLower)).ToList();
+
+            // Real entries first, clones (no real lookup data) pushed to
+            // the very end - within each group, apply the chosen sort.
+            var real = filtered.Where(s => s.HasRealData()).ToList();
+            var clones = filtered.Where(s => !s.HasRealData()).ToList();
+
+            _rows = new List<Row>();
+            bool grouping = _sortMode == SortMode.ByCategory || _sortMode == SortMode.ByMod;
+            if (!string.IsNullOrEmpty(qLower))
+            {
+                // While actively searching, relevance beats any sort mode -
+                // exact/prefix matches first, then alphabetical.
+                real = real.OrderBy(s => !StartsWithMatch(s, qLower)).ThenBy(s => s.Name).ToList();
+                AppendRows(real, false);
+            }
+            else if (grouping)
+            {
+                AppendGrouped(real, _sortMode == SortMode.ByMod);
+            }
+            else
+            {
+                real = SortPlain(real, _sortMode);
+                AppendRows(real, false);
+            }
+
+            if (clones.Count > 0)
+            {
+                _rows.Add(new HeaderRow { Text = "\u2014 NO DATA \u2014" });
+                clones = SortPlain(clones, _sortMode == SortMode.ByCategory || _sortMode == SortMode.ByMod ? SortMode.NameAsc : _sortMode);
+                AppendRows(clones, true);
+            }
 
             _scroll = 0;
-            int total = _filtered.Count * ITEM_HEIGHT;
+            int total = _rows.Sum(r => r.Height);
             _maxScroll = Math.Max(0, total - _resultsArea.Height);
             _needsFilter = false;
+        }
+
+        private void AppendRows(List<SubjectWrapper> subjects, bool isCloneGroup)
+        {
+            foreach (var s in subjects) _rows.Add(new ItemRow { Subject = s });
+        }
+
+        private void AppendGrouped(List<SubjectWrapper> subjects, bool byMod)
+        {
+            var groups = subjects
+                    .GroupBy(s => byMod ? s.ModGroupLabel() : s.GetCategory())
+                    .OrderBy(g => g.Key);
+            foreach (var g in groups)
+            {
+                _rows.Add(new HeaderRow { Text = "\u2014 " + g.Key.ToUpperInvariant() + " \u2014" });
+                foreach (var s in g.OrderBy(s => s.Name)) _rows.Add(new ItemRow { Subject = s });
+            }
+        }
+
+        private static List<SubjectWrapper> SortPlain(List<SubjectWrapper> list, SortMode mode)
+        {
+            return mode switch
+            {
+                SortMode.NameDesc => list.OrderByDescending(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+                _ => list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+            };
+        }
+
+        // Matches on translated name/description AND the internal
+        // (English) name, so players can search by an English name they
+        // remember from a wiki even while playing in Thai. Falls back to a
+        // typo-tolerant check (allows ~1 edit per 4 characters) so small
+        // mobile-keyboard typos still find the right entry.
+        private static bool MatchesSearch(SubjectWrapper s, string qLower)
+        {
+            if (string.IsNullOrEmpty(qLower)) return true;
+            if (s.Name.ToLowerInvariant().Contains(qLower)) return true;
+            if (s.Description.ToLowerInvariant().Contains(qLower)) return true;
+            if (s.InternalName.ToLowerInvariant().Contains(qLower)) return true;
+            return FuzzyContains(s.Name.ToLowerInvariant(), qLower);
+        }
+
+        private static bool StartsWithMatch(SubjectWrapper s, string qLower)
+            => s.Name.ToLowerInvariant().StartsWith(qLower) || s.InternalName.ToLowerInvariant().StartsWith(qLower);
+
+        // Cheap typo tolerance: slide the query across the name and accept
+        // a window if its edit distance to the query is small relative to
+        // its length. Good enough for 1-2 typo/transposition mistakes on a
+        // touch keyboard without needing a real fuzzy-search library.
+        private static bool FuzzyContains(string haystack, string needle)
+        {
+            if (needle.Length < 3) return false; // too short to fuzzy-match meaningfully
+            int maxDist = Math.Max(1, needle.Length / 4);
+            int windowLen = needle.Length;
+            for (int start = 0; start <= haystack.Length - Math.Max(1, windowLen - maxDist); start++)
+            {
+                int end = Math.Min(haystack.Length, start + windowLen + maxDist);
+                string window = haystack[start..end];
+                if (EditDistance(window, needle) <= maxDist) return true;
+            }
+            return false;
+        }
+
+        private static int EditDistance(string a, string b)
+        {
+            int[,] d = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                }
+            return d[a.Length, b.Length];
         }
 
         // ──────────────── Draw ────────────────
 
         public override void draw(SpriteBatch b)
         {
-            // Backdrop
             b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
 
-            // Menu box
             drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                 xPositionOnScreen, yPositionOnScreen, width, height, Color.White);
 
-            // Title
             string title = "Search Encyclopedia";
             float scale = 0.75f;
             var titleSize = Game1.dialogueFont.MeasureString(title) * scale;
@@ -389,10 +609,12 @@ namespace LookupAnythingMobileSearch.UI
 
             _closeButton.draw(b);
             DrawSearchBox(b);
+            DrawSortButton(b);
             if (!string.IsNullOrEmpty(_searchBox.Text)) _clearButton.draw(b);
             DrawCategories(b);
+            DrawSubCategories(b);
 
-            b.Draw(Game1.staminaRect, _resultsArea, Color.Black * 0.25f);
+            b.Draw(Game1.staminaRect, _resultsArea, new Color(60, 45, 30) * 0.15f);
             DrawResults(b);
             DrawScrollbar(b);
             DrawCount(b);
@@ -406,6 +628,8 @@ namespace LookupAnythingMobileSearch.UI
                 _searchBoxBounds.X - 4, _searchBoxBounds.Y - 4,
                 _searchBoxBounds.Width + 8, _searchBoxBounds.Height + 8, Color.White, drawShadow: false);
             b.Draw(Game1.staminaRect, _searchBoxBounds, Color.White);
+            if (_searchBox.Selected)
+                b.Draw(Game1.staminaRect, _searchBoxBounds, new Color(224, 169, 48) * 0.18f);
             _searchIcon.draw(b, Color.Gray, 1f);
             _searchBox.Draw(b, true);
             if (string.IsNullOrEmpty(_searchBox.Text) && !_searchBox.Selected)
@@ -413,28 +637,66 @@ namespace LookupAnythingMobileSearch.UI
                     new Vector2(_searchBox.X + 15, _searchBox.Y + 4), Color.Gray);
         }
 
+        private void DrawSortButton(SpriteBatch b)
+        {
+            drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                _sortButtonBounds.X, _sortButtonBounds.Y, _sortButtonBounds.Width, _sortButtonBounds.Height,
+                new Color(216, 189, 142), drawShadow: false);
+            string label = _sortMode switch
+            {
+                SortMode.NameAsc => "A-Z",
+                SortMode.NameDesc => "Z-A",
+                SortMode.ByCategory => "Type",
+                SortMode.ByMod => "Mod",
+                _ => "?",
+            };
+            var sz = Game1.smallFont.MeasureString(label);
+            var pos = new Vector2(_sortButtonBounds.X + (_sortButtonBounds.Width - sz.X) / 2f, _sortButtonBounds.Y + (_sortButtonBounds.Height - sz.Y) / 2f);
+            Utility.drawTextWithShadow(b, label, Game1.smallFont, pos, new Color(74, 47, 20));
+        }
+
         private void DrawCategories(SpriteBatch b)
         {
             foreach (var btn in _categories)
             {
-                var bgColor = btn.IsSelected ? new Color(100, 150, 100) : new Color(80, 80, 80);
-                var textColor = btn.IsSelected ? Color.White : Color.LightGray;
+                var bgColor = btn.IsSelected ? new Color(244, 226, 184) : new Color(216, 189, 142);
+                var textColor = btn.IsSelected ? new Color(74, 47, 20) : new Color(120, 90, 60);
+                var bounds = btn.Bounds;
+                if (btn.IsSelected)
+                    bounds = new Rectangle(bounds.X, bounds.Y - 2, bounds.Width, bounds.Height + 2);
                 drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
-                    btn.Bounds.X, btn.Bounds.Y, btn.Bounds.Width, btn.Bounds.Height, bgColor, drawShadow: false);
-                string label = Truncate(btn.Category, Game1.smallFont, btn.Bounds.Width - 12);
+                    bounds.X, bounds.Y, bounds.Width, bounds.Height, bgColor, drawShadow: false);
+                string label = Truncate(btn.Category, Game1.smallFont, bounds.Width - 12);
                 var labelSize = Game1.smallFont.MeasureString(label);
                 var pos = new Vector2(
-                    btn.Bounds.X + (btn.Bounds.Width - labelSize.X) / 2f,
-                    btn.Bounds.Y + (btn.Bounds.Height - labelSize.Y) / 2f);
+                    bounds.X + (bounds.Width - labelSize.X) / 2f,
+                    bounds.Y + (bounds.Height - labelSize.Y) / 2f);
                 Utility.drawTextWithShadow(b, label, Game1.smallFont, pos, textColor);
+            }
+        }
+
+        private void DrawSubCategories(SpriteBatch b)
+        {
+            foreach (var btn in _subCategories)
+            {
+                var textColor = btn.IsSelected ? new Color(74, 47, 20) : new Color(140, 110, 80);
+                string label = Truncate(btn.Category, Game1.tinyFont, btn.Bounds.Width - 6);
+                var sz = Game1.tinyFont.MeasureString(label);
+                var pos = new Vector2(btn.Bounds.X + (btn.Bounds.Width - sz.X) / 2f, btn.Bounds.Y + 2);
+                Utility.drawTextWithShadow(b, label, Game1.tinyFont, pos, textColor);
+                if (btn.IsSelected)
+                    b.Draw(Game1.staminaRect, new Rectangle(btn.Bounds.X, btn.Bounds.Bottom - 3, btn.Bounds.Width, 3), new Color(122, 74, 43));
             }
         }
 
         private void DrawResults(SpriteBatch b)
         {
-            if (_filtered.Count == 0)
+            if (_rows.Count == 0)
             {
-                string msg = _fullyLoaded ? "No results found" : "Loading...";
+                string msg = !_fullyLoaded ? "Loading..."
+                        : (_currentCategory == CAT_FAVORITES ? "No favorites yet - tap the star on an entry"
+                        : _currentCategory == CAT_RECENT ? "Nothing viewed yet"
+                        : "No results found - try a shorter search or another tab");
                 var sz = Game1.smallFont.MeasureString(msg);
                 Utility.drawTextWithShadow(b, msg, Game1.smallFont,
                     new Vector2(_resultsArea.X + (_resultsArea.Width - sz.X) / 2f,
@@ -442,82 +704,122 @@ namespace LookupAnythingMobileSearch.UI
                 return;
             }
 
-            int start = (int)(_scroll / ITEM_HEIGHT);
-            int end = Math.Min(start + _maxVisible + 1, _filtered.Count);
-            for (int i = start; i < end; i++)
+            float acc = -_scroll;
+            int idx = 0;
+            foreach (var row in _rows)
             {
-                int iy = _resultsArea.Y + i * ITEM_HEIGHT - (int)_scroll;
-                if (iy + ITEM_HEIGHT < _resultsArea.Y || iy > _resultsArea.Bottom) continue;
-                var bounds = new Rectangle(_resultsArea.X, iy, _resultsArea.Width, ITEM_HEIGHT - 4);
-                DrawResultItem(b, _filtered[i], bounds, i);
-                int sepY = iy + ITEM_HEIGHT - 4;
-                if (sepY > _resultsArea.Y && sepY < _resultsArea.Bottom - 4)
-                    b.Draw(Game1.staminaRect, new Rectangle(_resultsArea.X + 8, sepY, _resultsArea.Width - 16, 1), Color.White * 0.2f);
+                int iy = _resultsArea.Y + (int)acc;
+                if (iy + row.Height >= _resultsArea.Y && iy <= _resultsArea.Bottom)
+                {
+                    var bounds = new Rectangle(_resultsArea.X, iy, _resultsArea.Width, row.Height - (row is ItemRow ? 4 : 0));
+                    if (row is HeaderRow hr) DrawGroupHeader(b, hr, bounds);
+                    else if (row is ItemRow ir) DrawResultItem(b, ir.Subject, bounds, idx);
+                }
+                acc += row.Height;
+                idx++;
             }
         }
+
+        private void DrawGroupHeader(SpriteBatch b, HeaderRow hr, Rectangle bounds)
+        {
+            var clip = Rectangle.Intersect(bounds, _resultsArea);
+            if (clip.Width <= 0 || clip.Height <= 0) return;
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y + bounds.Height / 2, bounds.Width, 1), new Color(199, 168, 120) * 0.6f);
+            var sz = Game1.tinyFont.MeasureString(hr.Text);
+            var pos = new Vector2(bounds.X + (bounds.Width - sz.X) / 2f, bounds.Y + (bounds.Height - sz.Y) / 2f);
+            b.Draw(Game1.staminaRect, new Rectangle((int)pos.X - 6, bounds.Y, (int)sz.X + 12, bounds.Height), new Color(244, 226, 184));
+            Utility.drawTextWithShadow(b, hr.Text, Game1.tinyFont, pos, new Color(138, 106, 69));
+        }
+
+        private static Color CategoryStripe(string cat) => cat switch
+        {
+            "NPCs" => new Color(74, 156, 74),
+            "Monsters" => new Color(192, 64, 64),
+            "Items" => new Color(217, 165, 32),
+            "Buildings" => new Color(58, 111, 181),
+            _ => new Color(150, 150, 150),
+        };
 
         private void DrawResultItem(SpriteBatch b, SubjectWrapper s, Rectangle bounds, int idx)
         {
             var clip = Rectangle.Intersect(bounds, _resultsArea);
             if (clip.Width <= 0 || clip.Height <= 0) return;
 
-            b.Draw(Game1.staminaRect, clip, (idx % 2 == 0 ? Color.White * 0.08f : Color.White * 0.04f));
+            bool isClone = !s.HasRealData();
+            bool isLockedNpc = s.GetCategory() == "NPCs" && !s.NpcHasBeenMet();
+
+            b.Draw(Game1.staminaRect, clip, (idx % 2 == 0 ? new Color(180, 140, 90) * 0.10f : new Color(180, 140, 90) * 0.05f));
+            b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y, 5, bounds.Height), CategoryStripe(s.GetCategory()) * (isClone ? 0.35f : 1f));
 
             int iconSize = bounds.Height - 12;
-            var iconPos = new Vector2(bounds.X + 6, bounds.Y + 6);
+            var iconPos = new Vector2(bounds.X + 12, bounds.Y + 6);
 
             if (iconPos.Y >= _resultsArea.Y - iconSize && iconPos.Y < _resultsArea.Bottom)
             {
-                b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X - 2, (int)iconPos.Y - 2, iconSize + 4, iconSize + 4), Color.Black * 0.2f);
+                b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X - 2, (int)iconPos.Y - 2, iconSize + 4, iconSize + 4), Color.Black * 0.15f);
                 if (!s.DrawPortrait(b, iconPos, new Vector2(iconSize)))
                 {
                     b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X, (int)iconPos.Y, iconSize, iconSize), Color.Gray * 0.3f);
-                    string abbr = CategoryAbbr(s.GetCategory());
-                    var abbrSz = Game1.smallFont.MeasureString(abbr);
-                    Utility.drawTextWithShadow(b, abbr, Game1.tinyFont,
-                        new Vector2(iconPos.X + (iconSize - abbrSz.X) / 2f, iconPos.Y + (iconSize - abbrSz.Y) / 2f), Color.White);
                 }
             }
 
-            int textX = bounds.X + iconSize + 20;
+            int textX = bounds.X + iconSize + 26;
             int textY = bounds.Y + 8;
 
-            // Category badge
-            string cat = s.GetCategory();
-            var catSz = Game1.tinyFont.MeasureString(cat);
-            int badgeW = (int)(catSz.X + 12);
-            int badgeH = (int)(catSz.Y + 6);
-            int badgeX = bounds.Right - badgeW - 8;
-            if (textY >= _resultsArea.Y - 10 && textY < _resultsArea.Bottom)
-            {
-                drawTextureBox(b, Game1.mouseCursors, new Rectangle(403, 373, 9, 9),
-                    badgeX, textY, badgeW, badgeH, Color.DarkSlateBlue * 0.9f, 2f, false);
-                b.DrawString(Game1.tinyFont, cat, new Vector2(badgeX + 6, textY + (badgeH - catSz.Y) / 2f), Color.LightBlue);
-            }
+            Color nameColor = isClone ? new Color(180, 170, 155) : (isLockedNpc ? new Color(154, 131, 104) : new Color(58, 37, 16));
 
-            // Name
-            int maxW = badgeX - textX - 12;
-            string name = Truncate(s.Name, Game1.smallFont, maxW - 80);
-            DrawHighlighted(b, name, textX, textY, maxW);
+            int starRight = STAR_SIZE + 16;
+            int maxW = bounds.Right - textX - starRight - 10;
+            string name = Truncate(s.Name, Game1.smallFont, maxW - 90);
+            if (textY >= _resultsArea.Y && textY < _resultsArea.Bottom)
+                DrawHighlighted(b, name, textX, textY, nameColor);
 
-            // Description
+            // Small status tags after the name
+            float nameW = Game1.smallFont.MeasureString(name).X;
+            float tagX = textX + nameW + 8;
+            if (isClone)
+                DrawTag(b, "no data", tagX, textY, new Color(210, 210, 210), new Color(120, 120, 120));
+            else if (isLockedNpc)
+                DrawTag(b, "not unlocked", tagX, textY, new Color(224, 208, 176), new Color(122, 90, 48));
+
             float nameH = Game1.smallFont.MeasureString(name).Y;
             float descY = textY + nameH + 4f;
-            if (!string.IsNullOrEmpty(s.Description) && descY < bounds.Bottom - 20)
+            if (!isClone && !string.IsNullOrEmpty(s.Description) && descY < bounds.Bottom - 20)
             {
                 const float descScale = 0.6f;
-                int descMaxW = (int)((bounds.Right - textX - 10) / descScale);
+                int descMaxW = (int)((bounds.Right - textX - starRight - 10) / descScale);
                 string desc = Truncate(s.Description, Game1.smallFont, descMaxW);
                 if (descY >= _resultsArea.Y && descY < _resultsArea.Bottom - 10)
                 {
                     var dp = new Vector2(textX, descY);
-                    b.DrawString(Game1.smallFont, desc, dp + new Vector2(1, 1), Color.Black * 0.35f, 0, Vector2.Zero, descScale, SpriteEffects.None, 0);
-                    b.DrawString(Game1.smallFont, desc, dp, Color.Gray, 0, Vector2.Zero, descScale, SpriteEffects.None, 0);
+                    b.DrawString(Game1.smallFont, desc, dp + new Vector2(1, 1), Color.Black * 0.25f, 0, Vector2.Zero, descScale, SpriteEffects.None, 0);
+                    b.DrawString(Game1.smallFont, desc, dp, new Color(120, 105, 90), 0, Vector2.Zero, descScale, SpriteEffects.None, 0);
+                }
+            }
+
+            if (_persistence != null && !isClone)
+            {
+                var starRect = StarBounds(bounds);
+                if (starRect.Y >= _resultsArea.Y - STAR_SIZE && starRect.Y < _resultsArea.Bottom)
+                {
+                    bool fav = _persistence.IsFavorite(s.InternalName);
+                    string star = fav ? "*" : "o";
+                    var starSz = Game1.smallFont.MeasureString(star);
+                    var starPos = new Vector2(starRect.X + (starRect.Width - starSz.X) / 2f, starRect.Y + (starRect.Height - starSz.Y) / 2f);
+                    Utility.drawTextWithShadow(b, star, Game1.smallFont, starPos, fav ? new Color(217, 165, 32) : Color.LightGray);
                 }
             }
         }
 
-        private void DrawHighlighted(SpriteBatch b, string name, int x, int y, int maxW)
+        private static void DrawTag(SpriteBatch b, string text, float x, float y, Color bg, Color fg)
+        {
+            var sz = Game1.tinyFont.MeasureString(text);
+            var rect = new Rectangle((int)x, (int)y, (int)sz.X + 10, (int)sz.Y + 4);
+            b.Draw(Game1.staminaRect, rect, bg);
+            b.DrawString(Game1.tinyFont, text, new Vector2(x + 5, y + 2), fg);
+        }
+
+        private void DrawHighlighted(SpriteBatch b, string name, int x, int y, Color baseColor)
         {
             string q = (_searchBox.Text ?? "").Trim();
             if (!string.IsNullOrEmpty(q))
@@ -529,30 +831,31 @@ namespace LookupAnythingMobileSearch.UI
                     string match = name.Substring(hi, Math.Min(q.Length, name.Length - hi));
                     string after = name[(hi + match.Length)..];
                     float cx = x;
-                    if (before.Length > 0) { Utility.drawTextWithShadow(b, before, Game1.smallFont, new Vector2(cx, y), Color.White); cx += Game1.smallFont.MeasureString(before).X; }
+                    if (before.Length > 0) { Utility.drawTextWithShadow(b, before, Game1.smallFont, new Vector2(cx, y), baseColor); cx += Game1.smallFont.MeasureString(before).X; }
                     if (match.Length > 0)
                     {
                         var mSz = Game1.smallFont.MeasureString(match);
-                        b.Draw(Game1.staminaRect, new Rectangle((int)cx - 1, y - 1, (int)mSz.X + 2, (int)mSz.Y + 2), Color.Yellow * 0.3f);
-                        Utility.drawTextWithShadow(b, match, Game1.smallFont, new Vector2(cx, y), Color.Yellow);
+                        b.Draw(Game1.staminaRect, new Rectangle((int)cx - 1, y - 1, (int)mSz.X + 2, (int)mSz.Y + 2), new Color(224, 169, 48) * 0.35f);
+                        Utility.drawTextWithShadow(b, match, Game1.smallFont, new Vector2(cx, y), new Color(150, 100, 10));
                         cx += mSz.X;
                     }
-                    if (after.Length > 0) Utility.drawTextWithShadow(b, after, Game1.smallFont, new Vector2(cx, y), Color.White);
+                    if (after.Length > 0) Utility.drawTextWithShadow(b, after, Game1.smallFont, new Vector2(cx, y), baseColor);
                     return;
                 }
             }
-            Utility.drawTextWithShadow(b, name, Game1.smallFont, new Vector2(x, y), Color.White);
+            Utility.drawTextWithShadow(b, name, Game1.smallFont, new Vector2(x, y), baseColor);
         }
 
         private void DrawScrollbar(SpriteBatch b)
         {
             if (_maxScroll <= 0) return;
-            b.Draw(Game1.staminaRect, _scrollbarArea, Color.Black * 0.3f);
-            float ratio = (float)_resultsArea.Height / (_filtered.Count * ITEM_HEIGHT);
+            b.Draw(Game1.staminaRect, _scrollbarArea, Color.Black * 0.25f);
+            int total = Math.Max(1, _rows.Sum(r => r.Height));
+            float ratio = (float)_resultsArea.Height / total;
             int handleH = Math.Max(30, (int)(_scrollbarArea.Height * ratio));
             float pos = _maxScroll > 0 ? _scroll / _maxScroll : 0f;
             int handleY = _scrollbarArea.Y + (int)((_scrollbarArea.Height - handleH) * pos);
-            b.Draw(Game1.staminaRect, new Rectangle(_scrollbarArea.X, handleY, _scrollbarArea.Width, handleH), Color.White * 0.7f);
+            b.Draw(Game1.staminaRect, new Rectangle(_scrollbarArea.X, handleY, _scrollbarArea.Width, handleH), new Color(122, 74, 43) * 0.8f);
         }
 
         private void DrawCount(SpriteBatch b)
@@ -565,9 +868,8 @@ namespace LookupAnythingMobileSearch.UI
             }
             else
             {
-                text = _filtered.Count == _wrapped.Count
-                    ? $"{_wrapped.Count} items"
-                    : $"{_filtered.Count} of {_wrapped.Count}";
+                int shown = _rows.Count(r => r is ItemRow);
+                text = $"{shown} shown";
                 string q = (_searchBox.Text ?? "").Trim();
                 if (!string.IsNullOrEmpty(q))
                     text = $"'{Truncate(q, Game1.smallFont, 100)}': {text}";
@@ -583,6 +885,7 @@ namespace LookupAnythingMobileSearch.UI
         {
             if (string.IsNullOrEmpty(text)) return "";
             text = text.Replace("\n", " ").Replace("\r", " ");
+            if (maxW <= 0) return "";
             if (font.MeasureString(text).X <= maxW) return text;
             const string ellipsis = "...";
             float ellW = font.MeasureString(ellipsis).X;
@@ -594,12 +897,5 @@ namespace LookupAnythingMobileSearch.UI
             }
             return ellipsis;
         }
-
-        private static string CategoryAbbr(string cat) => cat switch
-        {
-            "NPCs" => "NPC", "Items" => "ITM", "Buildings" => "BLD",
-            "Animals" => "ANM", "Crops" => "CRP", "Terrain" => "TRN",
-            "Monsters" => "MON", _ => "???"
-        };
     }
 }

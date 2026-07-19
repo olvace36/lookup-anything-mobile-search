@@ -1,8 +1,10 @@
 
 using System;
+using System.Collections;
 using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewValley;
 
 namespace LookupAnythingMobileSearch.Framework
 {
@@ -13,15 +15,31 @@ namespace LookupAnythingMobileSearch.Framework
         private readonly PropertyInfo? _descriptionProperty;
         private readonly PropertyInfo? _typeProperty;
         private readonly MethodInfo? _drawPortraitMethod;
+        private readonly MethodInfo? _getDataMethod;
         private readonly PropertyInfo? _targetProperty;
         private readonly string _className;
         private readonly bool _isMonster;
+
+        // Lazily computed the first time something asks for it (usually
+        // once, when the result list is grouped/sorted) rather than for
+        // every subject up front - calling GetData() is the same work the
+        // real lookup page does, so we only want to pay that cost once per
+        // subject, not twice.
+        private bool? _hasData;
+        private string? _subCategoryCache;
 
         public object RawSubject => _subject;
         public string Name { get; }
         public string Description { get; }
         public string SubjectType { get; }
         public bool IsValid { get; }
+
+        // The unlocalized/internal identifier (NPC.Name, Monster.Name, or
+        // the item's qualified id) - always in English/ASCII regardless of
+        // game language, used for: mod-origin detection, "copy id", and
+        // letting the player search by the English name even when playing
+        // in Thai.
+        public string InternalName { get; }
 
         private SubjectWrapper(object subject)
         {
@@ -35,6 +53,7 @@ namespace LookupAnythingMobileSearch.Framework
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
             _targetProperty = type.GetProperty("Target", flags);
+            _getDataMethod = type.GetMethod("GetData", flags, null, Type.EmptyTypes, null);
 
             // CharacterSubject is used for both villager NPCs and monsters -
             // className alone can't tell them apart. It keeps the actual
@@ -47,6 +66,8 @@ namespace LookupAnythingMobileSearch.Framework
             Description = GetValue<string>(_descriptionProperty) ?? "";
             SubjectType = GetValue<string>(_typeProperty) ?? "";
             IsValid = _nameProperty != null;
+
+            InternalName = ComputeInternalName();
         }
 
         private T? GetValue<T>(PropertyInfo? prop)
@@ -56,13 +77,103 @@ namespace LookupAnythingMobileSearch.Framework
             catch { return default; }
         }
 
+        private object? GetTarget()
+        {
+            if (_targetProperty == null) return null;
+            try { return _targetProperty.GetValue(_subject); }
+            catch { return null; }
+        }
+
+        private string ComputeInternalName()
+        {
+            object? target = GetTarget();
+            try
+            {
+                if (target is NPC npc) return npc.Name;
+                if (target is Item item) return item.QualifiedItemId ?? item.Name ?? Name;
+            }
+            catch { }
+            return Name;
+        }
+
+        // Whether this NPC has ever been met (same signal the game's own
+        // Social Page and our NpcInfo mod use: friendshipData.ContainsKey).
+        // Only meaningful for NPCs - always true for everything else so it
+        // never accidentally hides/dims non-NPC entries.
+        public bool NpcHasBeenMet()
+        {
+            if (!_isMonster && GetCategory() == "NPCs")
+            {
+                try { return Game1.player.friendshipData.ContainsKey(InternalName); }
+                catch { return true; }
+            }
+            return true;
+        }
+
+        public bool NpcCanBeRomanced()
+        {
+            if (GetTarget() is NPC npc)
+            {
+                try { return npc.datable.Value; } catch { return false; }
+            }
+            return false;
+        }
+
+        // True once we've actually built this subject's real lookup fields
+        // and found at least one - a "clone"/leftover duplicate entry (the
+        // kind that shows nothing when opened) will come back empty here.
+        // Calling GetData() is the same cost as opening the real page, so
+        // this is deliberately computed once and cached, not on every draw.
+        public bool HasRealData()
+        {
+            if (_hasData.HasValue) return _hasData.Value;
+            if (_getDataMethod == null) { _hasData = true; return true; } // unknown -> don't penalize
+            try
+            {
+                object? result = _getDataMethod.Invoke(_subject, null);
+                if (result is IEnumerable enumerable)
+                {
+                    foreach (var _ in enumerable) { _hasData = true; return true; }
+                    _hasData = false;
+                    return false;
+                }
+                _hasData = result != null;
+                return _hasData.Value;
+            }
+            catch
+            {
+                // Couldn't tell - assume real rather than risk hiding a
+                // genuine entry behind a transient reflection error.
+                _hasData = true;
+                return true;
+            }
+        }
+
+        // Best-effort guess at whether this entry comes from a mod: mod
+        // authors almost universally give custom content an id containing
+        // a "." (author-namespaced, e.g. "DN.SnS_Item") or a "_" separator,
+        // neither of which vanilla ids ever use. Not perfect, but matches
+        // the same heuristic already used and tested in the companion
+        // LookupAnythingItemSources mod.
+        public bool IsFromMod()
+        {
+            string id = InternalName;
+            return id.Contains('.') || id.Contains('_');
+        }
+
+        // A short label naming which mod, if IsFromMod() - just the part
+        // before the first '.' or '_', for the "sort by mod" grouping.
+        public string ModGroupLabel()
+        {
+            if (!IsFromMod()) return "Vanilla";
+            int dot = InternalName.IndexOf('.');
+            int us = InternalName.IndexOf('_');
+            int cut = dot >= 0 && (us < 0 || dot < us) ? dot : us;
+            return cut > 0 ? InternalName[..cut] : InternalName;
+        }
+
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
-            // Lookup Anything's own DrawPortrait scales monsters by
-            // (size.X / frameWidth) only, assuming a roughly square frame.
-            // Most monster frames are taller than wide (e.g. 16x32), so at
-            // our square icon size that overflows below the box. Draw it
-            // ourselves instead, scaling to fit both dimensions.
             if (_isMonster && _targetProperty != null)
             {
                 try
@@ -70,12 +181,6 @@ namespace LookupAnythingMobileSearch.Framework
                     if (_targetProperty.GetValue(_subject) is StardewValley.Character target && target.Sprite != null)
                     {
                         var sprite = target.Sprite;
-                        // GreenSlime (and its recolored family - Frost Jelly,
-                        // Sludge, Tiger Slime) doesn't use the generic sprite
-                        // frame system at all - it has its own custom draw()
-                        // with a fixed, hand-picked source rect for its
-                        // resting pose. Using the generic frame math for it
-                        // slices the wrong part of the texture entirely.
                         Rectangle sourceRect = sprite.SourceRect;
                         int frameW = sprite.SpriteWidth;
                         int frameH = sprite.SpriteHeight;
@@ -88,8 +193,6 @@ namespace LookupAnythingMobileSearch.Framework
                         float scale = Math.Min(size.X / frameW, size.Y / frameH);
                         float drawWidth = frameW * scale;
                         float drawHeight = frameH * scale;
-                        // Center within the requested box so narrower/shorter
-                        // sprites don't hug one corner.
                         var centeredPos = new Vector2(
                                 position.X + (size.X - drawWidth) / 2f,
                                 position.Y + (size.Y - drawHeight) / 2f);
@@ -97,7 +200,7 @@ namespace LookupAnythingMobileSearch.Framework
                         return true;
                     }
                 }
-                catch { /* fall through to the default method below */ }
+                catch { }
             }
 
             if (_drawPortraitMethod == null) return false;
@@ -115,6 +218,51 @@ namespace LookupAnythingMobileSearch.Framework
             if (_className.Contains("TerrainFeature") || _className.Contains("BushSubject")) return "Terrain";
             if (_className.Contains("FarmAnimal")) return "Animals";
             return "Other";
+        }
+
+        // Sub-category within the main category, or "" if this category
+        // doesn't have a meaningful split. Computed once and cached since
+        // it may involve a bit of string work.
+        public string GetSubCategory()
+        {
+            if (_subCategoryCache != null) return _subCategoryCache;
+            string cat = GetCategory();
+            string result = cat switch
+            {
+                "Items" => StripParenthetical(SubjectType),
+                "NPCs" => NpcCanBeRomanced() ? "Romanceable" : "Not romanceable",
+                "Monsters" => IsFromMod() ? "Mod" : "Vanilla",
+                "Buildings" => IsBuildableBuilding() ? "Buildable" : "Other",
+                _ => "",
+            };
+            _subCategoryCache = result;
+            return result;
+        }
+
+        private bool IsBuildableBuilding()
+        {
+            // Player-constructable buildings are the ones listed in the
+            // carpenter/wizard build menu, which Data/Buildings marks with
+            // a non-empty Builder field (who offers to build it for you).
+            // NOTE: unverified against decompiled source this session -
+            // if Game1.buildingData isn't the right field name/shape on
+            // your game version, this just safely falls back to "Other"
+            // for every building (caught below), not a crash.
+            try
+            {
+                var data = Game1.content.Load<System.Collections.Generic.Dictionary<string, StardewValley.GameData.Buildings.BuildingData>>("Data/Buildings");
+                if (data != null && data.TryGetValue(InternalName, out var b))
+                    return !string.IsNullOrWhiteSpace(b.Builder);
+            }
+            catch { }
+            return false;
+        }
+
+        private static string StripParenthetical(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            int i = s.IndexOf('(');
+            return i > 0 ? s[..i].Trim() : s.Trim();
         }
 
         public static SubjectWrapper? Create(object? subject)

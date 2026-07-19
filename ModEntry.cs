@@ -29,6 +29,8 @@ namespace LookupAnythingMobileSearch
     {
         private LookupAnythingBridge? _bridge;
         private List<object>? _monsterSubjectsCache;
+        private MobileSearchMenu? _lastSearchMenu;
+        private PersistenceManager? _persistence;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
         private const string SearchMenuClassName = "SearchMenu";
@@ -136,7 +138,20 @@ namespace LookupAnythingMobileSearch
             // the path depends on the mod's exact UniqueID - best guess from
             // context (DestyNova is the credited CP author); safe no-op via
             // DoesAssetExist below if this guess is wrong.
-            ["Duskspire Behemoth"] = ("Mods/DestyNova.SwordAndSorcery/assets/duskspire-behemoth.png", 96, 96),
+            // Path/UniqueID verified directly from the mod's manifest
+            // ("[SMAPI] Sword & Sorcery" UniqueID is "KCC.SnS", NOT the
+            // earlier guessed "DestyNova.SwordAndSorcery"). Frame size is
+            // still an unverified guess - this monster is a heavily custom
+            // "DuskspireMonster" class that may draw itself via
+            // TemporaryAnimatedSprite rather than the standard Sprite
+            // field, so this may still not display correctly even with
+            // the corrected path.
+            ["Duskspire Behemoth"] = ("Mods/KCC.SnS/assets/duskspire-behemoth", 96, 96),
+
+            // Verified directly from the mod's own C# source
+            // (PirateGhost.cs constructor): exact texture path and frame
+            // size the class itself uses.
+            ["mistyspring.GiEXredux/PirateGhost"] = ("Mods/mistyspring.GiEXredux/Monsters/PirateGhost", 16, 32),
 
             // Stygium monsters that use a MonsterType whose frame size
             // differs from the default 16x24 (confirmed from each vanilla
@@ -223,7 +238,21 @@ namespace LookupAnythingMobileSearch
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (_bridge == null) return;
-            if (e.NewMenu == null) return;
+
+            // Everything just closed (e.g. the player closed the Lookup
+            // Anything detail page we opened from our own search menu).
+            // If we still have a search menu saved from before, bring it
+            // back instead of leaving the player dropped out to the game -
+            // this is what makes "select an entry -> view it -> close it"
+            // return to the search list instead of exiting entirely.
+            if (e.NewMenu == null)
+            {
+                if (_lastSearchMenu != null)
+                {
+                    Game1.activeClickableMenu = _lastSearchMenu;
+                }
+                return;
+            }
 
             // ตรวจว่าเป็น SearchMenu ของ Lookup Anything
             if (e.NewMenu.GetType().Name != SearchMenuClassName) return;
@@ -241,10 +270,24 @@ namespace LookupAnythingMobileSearch
                     return;
                 }
 
-                Game1.activeClickableMenu = new MobileSearchMenu(subjects, subject =>
+                _persistence ??= new PersistenceManager(Helper);
+
+                var menu = new MobileSearchMenu(subjects, subject =>
                 {
+                    // Don't clear _lastSearchMenu here - selecting an entry
+                    // should still let the player come back to this exact
+                    // menu (with their search/scroll position intact) once
+                    // they close the detail page.
                     _bridge.ShowLookupFor(subject);
-                }, GetMonsterSubjects);
+                }, GetMonsterSubjects, _persistence, onExplicitClose: () =>
+                {
+                    // The player closed the search menu itself (its own X
+                    // button or Escape) - don't restore it afterward.
+                    _lastSearchMenu = null;
+                });
+
+                _lastSearchMenu = menu;
+                Game1.activeClickableMenu = menu;
 
                 Monitor.Log("Opened MobileSearchMenu", LogLevel.Debug);
             }
