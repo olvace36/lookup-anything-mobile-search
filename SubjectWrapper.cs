@@ -244,15 +244,21 @@ namespace LookupAnythingMobileSearch.Framework
             // Player-constructable buildings are the ones listed in the
             // carpenter/wizard build menu, which Data/Buildings marks with
             // a non-empty Builder field (who offers to build it for you).
-            // NOTE: unverified against decompiled source this session -
-            // if Game1.buildingData isn't the right field name/shape on
-            // your game version, this just safely falls back to "Other"
-            // for every building (caught below), not a crash.
+            // Loaded as Dictionary<string, object> (not a direct reference
+            // to StardewValley.GameData.Buildings.BuildingData) since this
+            // project's referenced game assembly may not expose that
+            // namespace; the Builder field is then read via reflection on
+            // whatever concrete type comes back, avoiding a hard
+            // compile-time dependency on a type we can't verify here.
             try
             {
-                var data = Game1.content.Load<System.Collections.Generic.Dictionary<string, StardewValley.GameData.Buildings.BuildingData>>("Data/Buildings");
-                if (data != null && data.TryGetValue(InternalName, out var b))
-                    return !string.IsNullOrWhiteSpace(b.Builder);
+                var data = Game1.content.Load<System.Collections.Generic.Dictionary<string, object>>("Data/Buildings");
+                if (data != null && data.TryGetValue(InternalName, out object? buildingData) && buildingData != null)
+                {
+                    var builderProp = buildingData.GetType().GetProperty("Builder");
+                    string? builder = builderProp?.GetValue(buildingData) as string;
+                    return !string.IsNullOrWhiteSpace(builder);
+                }
             }
             catch { }
             return false;
