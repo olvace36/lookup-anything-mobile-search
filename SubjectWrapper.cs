@@ -329,7 +329,7 @@ namespace LookupAnythingMobileSearch.Framework
             if (target is StardewValley.Objects.Hat) return "Hat";
             if (target is StardewValley.Objects.Clothing) return "Clothing";
             if (target is StardewValley.Objects.Furniture) return "Furniture";
-            if (target is StardewValley.Tools.Tool) return "Tool";
+            if (target is StardewValley.Tool) return "Tool";
             return "Other";
         }
 
