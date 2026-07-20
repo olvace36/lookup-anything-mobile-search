@@ -31,6 +31,7 @@ namespace LookupAnythingMobileSearch
         private List<object>? _monsterSubjectsCache;
         private MobileSearchMenu? _lastSearchMenu;
         private PersistenceManager? _persistence;
+        internal static IMonitor? SMonitor;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
         private const string SearchMenuClassName = "SearchMenu";
@@ -39,6 +40,7 @@ namespace LookupAnythingMobileSearch
 
         public override void Entry(IModHelper helper)
         {
+            SMonitor = Monitor;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
         }
 
@@ -249,6 +251,13 @@ namespace LookupAnythingMobileSearch
             {
                 if (_lastSearchMenu != null)
                 {
+                    // Recompute layout against the CURRENT viewport before
+                    // showing this instance again - without this, stale
+                    // absolute-pixel bounds from whenever the menu was
+                    // first built can make it draw undersized/mispositioned
+                    // and break click hit-testing (looked like the menu
+                    // "shrinking and freezing" when re-opened).
+                    _lastSearchMenu.RefreshLayout();
                     Game1.activeClickableMenu = _lastSearchMenu;
                 }
                 return;

@@ -1,9 +1,13 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using LookupAnythingMobileSearch;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewModdingAPI;
 using StardewValley;
 
 namespace LookupAnythingMobileSearch.Framework
@@ -53,7 +57,7 @@ namespace LookupAnythingMobileSearch.Framework
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
             _targetProperty = type.GetProperty("Target", flags);
-            _getDataMethod = type.GetMethod("GetData", flags, null, Type.EmptyTypes, null);
+            _getDataMethod = ResolveGetDataMethod(type, flags);
 
             // CharacterSubject is used for both villager NPCs and monsters -
             // className alone can't tell them apart. It keeps the actual
@@ -84,15 +88,18 @@ namespace LookupAnythingMobileSearch.Framework
             catch { return null; }
         }
 
+        private bool _internalNameFromTarget;
+
         private string ComputeInternalName()
         {
             object? target = GetTarget();
             try
             {
-                if (target is NPC npc) return npc.Name;
-                if (target is Item item) return item.QualifiedItemId ?? item.Name ?? Name;
+                if (target is NPC npc) { _internalNameFromTarget = true; return npc.Name; }
+                if (target is Item item) { _internalNameFromTarget = true; return item.QualifiedItemId ?? item.Name ?? Name; }
             }
             catch { }
+            _internalNameFromTarget = false;
             return Name;
         }
 
@@ -100,14 +107,39 @@ namespace LookupAnythingMobileSearch.Framework
         // Social Page and our NpcInfo mod use: friendshipData.ContainsKey).
         // Only meaningful for NPCs - always true for everything else so it
         // never accidentally hides/dims non-NPC entries.
+        private static readonly HashSet<string> _loggedMetIssues = new();
+
         public bool NpcHasBeenMet()
         {
-            if (!_isMonster && GetCategory() == "NPCs")
+            if (_isMonster || GetCategory() != "NPCs") return true;
+
+            try
             {
-                try { return Game1.player.friendshipData.ContainsKey(InternalName); }
-                catch { return true; }
+                if (Game1.player.friendshipData.ContainsKey(InternalName)) return true;
+
+                // If InternalName didn't come from the real NPC target
+                // (Target reflection failed), it's the TRANSLATED display
+                // name instead of the true internal key - friendshipData
+                // is always keyed by the internal name, so that lookup
+                // would incorrectly report "not met" for every such NPC.
+                // Log this once per unique name so a real cause can be
+                // pinned down instead of guessed at again.
+                if (!_internalNameFromTarget && _loggedMetIssues.Add(InternalName))
+                {
+                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Couldn't resolve the real internal name for NPC '{Name}' "
+                            + $"(got '{InternalName}' from the translated Name instead) - met-status check may be wrong for this one.",
+                            LogLevel.Debug);
+                }
+
+                // Fallback: case-insensitive match, in case of a casing
+                // mismatch between the two systems.
+                foreach (string key in Game1.player.friendshipData.Keys)
+                {
+                    if (string.Equals(key, InternalName, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                return false;
             }
-            return true;
+            catch { return true; }
         }
 
         public bool NpcCanBeRomanced()
@@ -124,13 +156,46 @@ namespace LookupAnythingMobileSearch.Framework
         // kind that shows nothing when opened) will come back empty here.
         // Calling GetData() is the same cost as opening the real page, so
         // this is deliberately computed once and cached, not on every draw.
+        private static MethodInfo? ResolveGetDataMethod(Type type, BindingFlags flags)
+        {
+            // Try the exact no-arg overload first (fast path).
+            var exact = type.GetMethod("GetData", flags, null, Type.EmptyTypes, null);
+            if (exact != null) return exact;
+
+            // Fall back to any method named "GetData" whose parameters are
+            // all optional - some subject classes may expose it with a
+            // default-valued parameter instead of a bare parameterless
+            // overload, which the exact lookup above would miss.
+            foreach (var m in type.GetMethods(flags))
+            {
+                if (m.Name != "GetData") continue;
+                if (m.GetParameters().All(p => p.IsOptional)) return m;
+            }
+            return null;
+        }
+
+        private static bool _loggedMissingGetData;
+
         public bool HasRealData()
         {
             if (_hasData.HasValue) return _hasData.Value;
-            if (_getDataMethod == null) { _hasData = true; return true; } // unknown -> don't penalize
+            if (_getDataMethod == null)
+            {
+                if (!_loggedMissingGetData)
+                {
+                    _loggedMissingGetData = true;
+                    ModEntry.SMonitor?.Log($"[SubjectWrapper] No GetData method found on {_subject.GetType().FullName} - "
+                            + "real/clone separation is disabled for this subject type.", LogLevel.Debug);
+                }
+                _hasData = true;
+                return true;
+            }
             try
             {
-                object? result = _getDataMethod.Invoke(_subject, null);
+                object?[]? args = _getDataMethod.GetParameters().Length == 0
+                        ? null
+                        : _getDataMethod.GetParameters().Select(p => p.DefaultValue).ToArray();
+                object? result = _getDataMethod.Invoke(_subject, args);
                 if (result is IEnumerable enumerable)
                 {
                     foreach (var _ in enumerable) { _hasData = true; return true; }
@@ -140,10 +205,10 @@ namespace LookupAnythingMobileSearch.Framework
                 _hasData = result != null;
                 return _hasData.Value;
             }
-            catch
+            catch (Exception ex)
             {
-                // Couldn't tell - assume real rather than risk hiding a
-                // genuine entry behind a transient reflection error.
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] GetData() threw for {Name} ({_subject.GetType().Name}): {ex.Message} - "
+                        + "treating as real data to avoid hiding a genuine entry.", LogLevel.Trace);
                 _hasData = true;
                 return true;
             }
@@ -157,15 +222,21 @@ namespace LookupAnythingMobileSearch.Framework
         // LookupAnythingItemSources mod.
         public bool IsFromMod()
         {
+            if (GetCategory() == "Buildings") return IsBuildingFromMod();
             string id = InternalName;
             return id.Contains('.') || id.Contains('_');
         }
 
         // A short label naming which mod, if IsFromMod() - just the part
         // before the first '.' or '_', for the "sort by mod" grouping.
+        // Buildings rarely use that naming convention even when modded, so
+        // there's no reliable way to extract a specific mod name from the
+        // building name alone - just group all non-vanilla buildings
+        // together as "Mod" rather than guessing a name.
         public string ModGroupLabel()
         {
             if (!IsFromMod()) return "Vanilla";
+            if (GetCategory() == "Buildings") return "Mod";
             int dot = InternalName.IndexOf('.');
             int us = InternalName.IndexOf('_');
             int cut = dot >= 0 && (us < 0 || dot < us) ? dot : us;
@@ -229,7 +300,7 @@ namespace LookupAnythingMobileSearch.Framework
             string cat = GetCategory();
             string result = cat switch
             {
-                "Items" => StripParenthetical(SubjectType),
+                "Items" => ClassifyItemSubCategory(),
                 "NPCs" => NpcCanBeRomanced() ? "Romanceable" : "Not romanceable",
                 "Monsters" => IsFromMod() ? "Mod" : "Vanilla",
                 "Buildings" => IsBuildableBuilding() ? "Buildable" : "Other",
@@ -238,6 +309,47 @@ namespace LookupAnythingMobileSearch.Framework
             _subCategoryCache = result;
             return result;
         }
+
+        // Classifies items by their actual C# class rather than Lookup
+        // Anything's translated "Type" text - that text turned out to be
+        // far more granular than expected (a distinct value per weapon
+        // subtype like "Dagger"/"Sword"/"Club" instead of one shared
+        // "Weapon" label), so stripping a "(...)" suffix from it didn't
+        // actually merge anything. Checking against the concrete game
+        // classes (MeleeWeapon, Ring, etc. - all long-stable base-game
+        // types) is reliable regardless of how any given item's Type text
+        // happens to be worded.
+        private string ClassifyItemSubCategory()
+        {
+            object? target = GetTarget();
+            if (target == null) return "Other";
+            if (target is StardewValley.Tools.MeleeWeapon || target is StardewValley.Tools.Slingshot) return "Weapon";
+            if (target is StardewValley.Objects.Ring) return "Ring";
+            if (target is StardewValley.Objects.Boots) return "Boots";
+            if (target is StardewValley.Objects.Hat) return "Hat";
+            if (target is StardewValley.Objects.Clothing) return "Clothing";
+            if (target is StardewValley.Objects.Furniture) return "Furniture";
+            if (target is StardewValley.Tools.Tool) return "Tool";
+            return "Other";
+        }
+
+        // Known vanilla building names (1.6). Buildings don't reliably use
+        // the "." or "_" namespaced-id convention that items/monsters do,
+        // so the general IsFromMod() heuristic under-detects modded
+        // buildings - anything NOT in this list is treated as a mod
+        // building instead, which is far more reliable for this category
+        // specifically.
+        private static readonly HashSet<string> VanillaBuildings = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Coop", "Big Coop", "Deluxe Coop", "Barn", "Big Barn", "Deluxe Barn",
+            "Slime Hutch", "Shed", "Big Shed", "Silo", "Well", "Stable",
+            "Fish Pond", "Mill", "Junimo Hut", "Farmhouse", "Cabin", "Greenhouse",
+            "Shipping Bin", "Earth Obelisk", "Water Obelisk", "Desert Obelisk",
+            "Island Obelisk", "Gold Clock", "Trailer", "Trailer Big", "Pet Bowl",
+            "Log Cabin", "Plank Cabin", "Stone Cabin",
+        };
+
+        private bool IsBuildingFromMod() => !VanillaBuildings.Contains(InternalName);
 
         private bool IsBuildableBuilding()
         {

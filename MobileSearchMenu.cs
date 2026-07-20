@@ -60,6 +60,7 @@ namespace LookupAnythingMobileSearch.UI
         private readonly List<CategoryButton> _categories = new();
         private string _currentCategory = "All";
         private readonly List<CategoryButton> _subCategories = new();
+        private readonly HashSet<string> _keptSubCategories = new();
         private string _currentSubCategory = "All";
         private SortMode _sortMode = SortMode.NameAsc;
 
@@ -86,6 +87,8 @@ namespace LookupAnythingMobileSearch.UI
         private Rectangle _subCategoryArea;
         private Rectangle _resultsArea;
         private Rectangle _scrollbarArea;
+        private Rectangle _scrollUpButtonBounds;
+        private Rectangle _scrollDownButtonBounds;
 
         // Pseudo-categories that pull from persisted lists instead of
         // "everything that matches this SubjectWrapper property".
@@ -117,6 +120,15 @@ namespace LookupAnythingMobileSearch.UI
                          ?? t.GetMethod("HideStatusBar", flags);
         }
 
+        private const int CATEGORY_ROWS = 2;
+        private const int SUBCATEGORY_ROWS = 2;
+        private const int ROW_GAP = 4;
+        private const int MAX_SUBCATEGORIES = 6; // beyond this, extras fold into "Other"
+        private const int SCROLL_ARROW_SIZE = 40;
+
+        private int CategoryAreaHeight => CATEGORY_HEIGHT * CATEGORY_ROWS + ROW_GAP * (CATEGORY_ROWS - 1);
+        private int SubCategoryAreaHeight => SUBCATEGORY_HEIGHT * SUBCATEGORY_ROWS + ROW_GAP * (SUBCATEGORY_ROWS - 1);
+
         private void CalculateLayout()
         {
             int margin = Math.Min(24, Game1.uiViewport.Width / 25);
@@ -126,18 +138,45 @@ namespace LookupAnythingMobileSearch.UI
             height = Game1.uiViewport.Height - margin * 2;
 
             int cx = xPositionOnScreen + PADDING;
-            int cw = width - PADDING * 2 - SCROLLBAR_WIDTH - 8;
+            int cw = width - PADDING * 2 - SCROLLBAR_WIDTH - 8 - SCROLL_ARROW_SIZE - 6;
             int cy = yPositionOnScreen + PADDING + 40;
 
             _searchBoxBounds = new Rectangle(cx + 20, cy, cw - 56 - SORT_BUTTON_WIDTH - 8, SEARCH_BOX_HEIGHT);
             _sortButtonBounds = new Rectangle(_searchBoxBounds.Right + 8, cy, SORT_BUTTON_WIDTH, SEARCH_BOX_HEIGHT);
             cy += SEARCH_BOX_HEIGHT + 12;
-            _categoryArea = new Rectangle(cx, cy, cw, CATEGORY_HEIGHT);
-            cy += CATEGORY_HEIGHT + 6;
-            _subCategoryArea = new Rectangle(cx, cy, cw, SUBCATEGORY_HEIGHT);
-            cy += SUBCATEGORY_HEIGHT + 10;
+            _categoryArea = new Rectangle(cx, cy, cw, CategoryAreaHeight);
+            cy += CategoryAreaHeight + 6;
+            _subCategoryArea = new Rectangle(cx, cy, cw, SubCategoryAreaHeight);
+            cy += SubCategoryAreaHeight + 10;
             _resultsArea = new Rectangle(cx + 14, cy, cw - 20, yPositionOnScreen + height - cy - PADDING - 24);
             _scrollbarArea = new Rectangle(_resultsArea.Right + 8, _resultsArea.Y, SCROLLBAR_WIDTH, _resultsArea.Height);
+
+            int arrowX = _scrollbarArea.Right + 8;
+            _scrollUpButtonBounds = new Rectangle(arrowX, _resultsArea.Y, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
+            _scrollDownButtonBounds = new Rectangle(arrowX, _resultsArea.Bottom - SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
+        }
+
+        // Recomputes layout and re-lays-out existing buttons against the
+        // current viewport - call this before bringing a previously-built
+        // menu instance back on screen (e.g. when restoring it after the
+        // player closes a detail page), since the viewport may have
+        // changed since this instance was first created and stale
+        // absolute-pixel bounds would draw it undersized/mispositioned and
+        // break click hit-testing.
+        public void RefreshLayout()
+        {
+            CalculateLayout();
+            _searchBox.X = _searchBoxBounds.X + 40;
+            _searchBox.Y = _searchBoxBounds.Y + 4;
+            _searchBox.Width = _searchBoxBounds.Width - 50;
+            _searchBox.Height = _searchBoxBounds.Height;
+            _searchIcon.bounds = new Rectangle(_searchBoxBounds.X + 8, _searchBoxBounds.Y + (_searchBoxBounds.Height - 26) / 2, 26, 26);
+            _clearButton.bounds = new Rectangle(_searchBoxBounds.Right + 8, _searchBoxBounds.Y + (_searchBoxBounds.Height - 44) / 2, 44, 44);
+            _closeButton.bounds = new Rectangle(xPositionOnScreen + width - 56 - 8, yPositionOnScreen + 8, 56, 56);
+            var catLabels = _categories.Select(c => c.Category).ToList();
+            RebuildCategoryButtons(catLabels);
+            RebuildSubCategoryButtons();
+            _needsFilter = true;
         }
 
         private void CreateComponents()
@@ -171,17 +210,24 @@ namespace LookupAnythingMobileSearch.UI
         private void RebuildCategoryButtons(List<string> cats)
         {
             _categories.Clear();
-            int btnW = (_categoryArea.Width - (cats.Count - 1) * 6) / cats.Count;
-            int x = _categoryArea.X;
-            foreach (var cat in cats)
+            var rows = SplitIntoRows(cats, CATEGORY_ROWS);
+            for (int r = 0; r < rows.Count; r++)
             {
-                _categories.Add(new CategoryButton
+                var rowCats = rows[r];
+                if (rowCats.Count == 0) continue;
+                int btnW = (_categoryArea.Width - (rowCats.Count - 1) * 6) / rowCats.Count;
+                int x = _categoryArea.X;
+                int y = _categoryArea.Y + r * (CATEGORY_HEIGHT + ROW_GAP);
+                foreach (var cat in rowCats)
                 {
-                    Bounds = new Rectangle(x, _categoryArea.Y, btnW, CATEGORY_HEIGHT),
-                    Category = cat,
-                    IsSelected = cat == _currentCategory
-                });
-                x += btnW + 6;
+                    _categories.Add(new CategoryButton
+                    {
+                        Bounds = new Rectangle(x, y, btnW, CATEGORY_HEIGHT),
+                        Category = cat,
+                        IsSelected = cat == _currentCategory
+                    });
+                    x += btnW + 6;
+                }
             }
         }
 
@@ -191,31 +237,63 @@ namespace LookupAnythingMobileSearch.UI
             if (_currentCategory == "All" || _currentCategory == CAT_FAVORITES || _currentCategory == CAT_RECENT)
                 return;
 
-            var subs = _wrapped
+            var subCounts = _wrapped
                     .Where(s => s.GetCategory() == _currentCategory)
                     .Select(s => s.GetSubCategory())
                     .Where(s => !string.IsNullOrEmpty(s))
-                    .Distinct()
-                    .OrderBy(s => s)
-                    .ToList();
-            if (subs.Count == 0) return;
+                    .GroupBy(s => s)
+                    .ToDictionary(g => g.Key, g => g.Count());
+            if (subCounts.Count == 0) return;
+
+            // Cap how many distinct sub-categories get their own tab -
+            // otherwise a category with many finely-graded "Type" values
+            // (e.g. Items) creates dozens of tabs too narrow to render any
+            // readable label at all. The most common ones get a tab each;
+            // everything past the cap folds into a single "Other" tab.
+            var kept = subCounts.OrderByDescending(kv => kv.Value).Take(MAX_SUBCATEGORIES).Select(kv => kv.Key).OrderBy(s => s).ToList();
+            bool hasOverflow = subCounts.Count > kept.Count;
+            _keptSubCategories.Clear();
+            foreach (var k in kept) _keptSubCategories.Add(k);
 
             var list = new List<string> { "All" };
-            list.AddRange(subs);
+            list.AddRange(kept);
+            if (hasOverflow) list.Add("Other");
             if (!list.Contains(_currentSubCategory)) _currentSubCategory = "All";
 
-            int btnW = Math.Max(50, (_subCategoryArea.Width - (list.Count - 1) * 4) / list.Count);
-            int x = _subCategoryArea.X;
-            foreach (var sub in list)
+            var rows = SplitIntoRows(list, SUBCATEGORY_ROWS);
+            for (int r = 0; r < rows.Count; r++)
             {
-                _subCategories.Add(new CategoryButton
+                var rowSubs = rows[r];
+                if (rowSubs.Count == 0) continue;
+                int btnW = Math.Max(60, (_subCategoryArea.Width - (rowSubs.Count - 1) * 4) / rowSubs.Count);
+                int x = _subCategoryArea.X;
+                int y = _subCategoryArea.Y + r * (SUBCATEGORY_HEIGHT + ROW_GAP);
+                foreach (var sub in rowSubs)
                 {
-                    Bounds = new Rectangle(x, _subCategoryArea.Y, btnW, SUBCATEGORY_HEIGHT),
-                    Category = sub,
-                    IsSelected = sub == _currentSubCategory
-                });
-                x += btnW + 4;
+                    _subCategories.Add(new CategoryButton
+                    {
+                        Bounds = new Rectangle(x, y, btnW, SUBCATEGORY_HEIGHT),
+                        Category = sub,
+                        IsSelected = sub == _currentSubCategory
+                    });
+                    x += btnW + 4;
+                }
             }
+        }
+
+        // Splits a label list evenly across up to maxRows rows (first rows
+        // get the extra items when it doesn't divide evenly), so a long
+        // tab list wraps to multiple readable rows instead of squeezing
+        // every tab into one row so narrow the text can't render.
+        private static List<List<string>> SplitIntoRows(List<string> items, int maxRows)
+        {
+            var result = new List<List<string>>();
+            if (items.Count == 0) { for (int i = 0; i < maxRows; i++) result.Add(new List<string>()); return result; }
+            int perRow = (int)Math.Ceiling(items.Count / (double)maxRows);
+            for (int i = 0; i < items.Count; i += perRow)
+                result.Add(items.Skip(i).Take(perRow).ToList());
+            while (result.Count < maxRows) result.Add(new List<string>());
+            return result;
         }
 
         // ──────────────── Input ────────────────
@@ -283,6 +361,20 @@ namespace LookupAnythingMobileSearch.UI
                     _needsFilter = true;
                     if (playSound) Game1.playSound("smallSelect");
                 }
+                return;
+            }
+
+            const int ARROW_SCROLL_AMOUNT = 200;
+            if (_scrollUpButtonBounds.Contains(x, y))
+            {
+                _scroll = MathHelper.Clamp(_scroll - ARROW_SCROLL_AMOUNT, 0, _maxScroll);
+                if (playSound) Game1.playSound("shwip");
+                return;
+            }
+            if (_scrollDownButtonBounds.Contains(x, y))
+            {
+                _scroll = MathHelper.Clamp(_scroll + ARROW_SCROLL_AMOUNT, 0, _maxScroll);
+                if (playSound) Game1.playSound("shwip");
                 return;
             }
 
@@ -473,7 +565,9 @@ namespace LookupAnythingMobileSearch.UI
             else
             {
                 source = _wrapped.Where(s => _currentCategory == "All" || s.GetCategory() == _currentCategory);
-                if (_currentSubCategory != "All")
+                if (_currentSubCategory == "Other")
+                    source = source.Where(s => !_keptSubCategories.Contains(s.GetSubCategory()));
+                else if (_currentSubCategory != "All")
                     source = source.Where(s => s.GetSubCategory() == _currentSubCategory);
             }
 
@@ -617,6 +711,7 @@ namespace LookupAnythingMobileSearch.UI
             b.Draw(Game1.staminaRect, _resultsArea, new Color(60, 45, 30) * 0.15f);
             DrawResults(b);
             DrawScrollbar(b);
+            DrawScrollArrows(b);
             DrawCount(b);
 
             drawMouse(b);
@@ -844,6 +939,35 @@ namespace LookupAnythingMobileSearch.UI
                 }
             }
             Utility.drawTextWithShadow(b, name, Game1.smallFont, new Vector2(x, y), baseColor);
+        }
+
+        // Drawn as plain colored boxes rather than arrow glyphs/text - the
+        // game's bitmap fonts don't reliably render arrow/triangle Unicode
+        // characters (same issue hit earlier with emoji), so this uses
+        // guaranteed-safe rectangle shading instead of any character.
+        private void DrawScrollArrows(SpriteBatch b)
+        {
+            bool canUp = _scroll > 0;
+            bool canDown = _scroll < _maxScroll;
+            DrawArrowButton(b, _scrollUpButtonBounds, up: true, canUp);
+            DrawArrowButton(b, _scrollDownButtonBounds, up: false, canDown);
+        }
+
+        private static void DrawArrowButton(SpriteBatch b, Rectangle bounds, bool up, bool enabled)
+        {
+            var bg = enabled ? new Color(216, 189, 142) : new Color(180, 170, 155) * 0.5f;
+            b.Draw(Game1.staminaRect, bounds, bg);
+            var fg = enabled ? new Color(74, 47, 20) : Color.Gray;
+            int w = bounds.Width / 2;
+            int cx = bounds.X + bounds.Width / 2;
+            int topY = up ? bounds.Y + bounds.Height / 4 : bounds.Bottom - bounds.Height / 4 - 2;
+            int rows = bounds.Height / 3;
+            for (int i = 0; i < rows; i++)
+            {
+                int rowW = w - i * (w / Math.Max(rows, 1));
+                int y = up ? topY + i * 2 : topY - i * 2;
+                b.Draw(Game1.staminaRect, new Rectangle(cx - rowW / 2, y, Math.Max(rowW, 2), 2), fg);
+            }
         }
 
         private void DrawScrollbar(SpriteBatch b)
