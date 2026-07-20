@@ -559,7 +559,9 @@ namespace LookupAnythingMobileSearch.UI
             else if (_currentCategory == CAT_RECENT)
             {
                 var recent = _persistence?.RecentlyViewed ?? Array.Empty<string>() as IReadOnlyList<string>;
-                var byId = _wrapped.ToDictionary(s => s.InternalName, s => s, StringComparer.Ordinal);
+                var byId = _wrapped
+                        .GroupBy(s => s.InternalName, StringComparer.Ordinal)
+                        .ToDictionary(g => g.Key, g => g.First());
                 source = recent.Select(id => byId.TryGetValue(id, out var s) ? s : null).Where(s => s != null)!;
             }
             else

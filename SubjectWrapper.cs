@@ -57,6 +57,7 @@ namespace LookupAnythingMobileSearch.Framework
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
             _targetProperty = type.GetProperty("Target", flags);
+            _altTargetProperty = _targetProperty == null ? type.GetProperty("Item", flags) : null;
             _getDataMethod = ResolveGetDataMethod(type, flags);
 
             // CharacterSubject is used for both villager NPCs and monsters -
@@ -83,10 +84,27 @@ namespace LookupAnythingMobileSearch.Framework
 
         private object? GetTarget()
         {
-            if (_targetProperty == null) return null;
-            try { return _targetProperty.GetValue(_subject); }
-            catch { return null; }
+            if (_targetProperty != null)
+            {
+                try { return _targetProperty.GetValue(_subject); }
+                catch { return null; }
+            }
+            if (_altTargetProperty != null)
+            {
+                try { return _altTargetProperty.GetValue(_subject); }
+                catch { return null; }
+            }
+            if (!_loggedNoTargetProperty)
+            {
+                _loggedNoTargetProperty = true;
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] No 'Target' or 'Item' property found on {_subject.GetType().FullName} - "
+                        + "item sub-category classification and internal-name resolution are disabled for this subject type.",
+                        LogLevel.Debug);
+            }
+            return null;
         }
+        private readonly PropertyInfo? _altTargetProperty;
+        private static bool _loggedNoTargetProperty;
 
         private bool _internalNameFromTarget;
 
@@ -179,6 +197,20 @@ namespace LookupAnythingMobileSearch.Framework
         public bool HasRealData()
         {
             if (_hasData.HasValue) return _hasData.Value;
+
+            // Reliable signal spotted directly in real screenshots: Lookup
+            // Anything appends one or more "*" to a subject's Name to
+            // disambiguate duplicate/leftover registrations of the same
+            // underlying NPC/item (e.g. "Emily", "Emily*", "Emily**").
+            // This is a much more dependable clone marker than trying to
+            // call GetData() via reflection, which turned out to not
+            // reliably distinguish them.
+            if (Name.EndsWith('*'))
+            {
+                _hasData = false;
+                return false;
+            }
+
             if (_getDataMethod == null)
             {
                 if (!_loggedMissingGetData)
