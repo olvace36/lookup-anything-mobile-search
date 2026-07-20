@@ -900,10 +900,34 @@ namespace LookupAnythingMobileSearch.UI
                 if (starRect.Y >= _resultsArea.Y - STAR_SIZE && starRect.Y < _resultsArea.Bottom)
                 {
                     bool fav = _persistence.IsFavorite(s.InternalName);
-                    string star = fav ? "*" : "o";
-                    var starSz = Game1.smallFont.MeasureString(star);
-                    var starPos = new Vector2(starRect.X + (starRect.Width - starSz.X) / 2f, starRect.Y + (starRect.Height - starSz.Y) / 2f);
-                    Utility.drawTextWithShadow(b, star, Game1.smallFont, starPos, fav ? new Color(217, 165, 32) : Color.LightGray);
+                    DrawStarShape(b, starRect, fav);
+                }
+            }
+        }
+
+        // Drawn as a small diamond shape rather than a "*"/"o" character -
+        // the lowercase "o" for the unfavorited state turned out to render
+        // small enough to look just like the digit "0" in the game's
+        // font, which read as a confusing stray number next to every row.
+        private static void DrawStarShape(SpriteBatch b, Rectangle bounds, bool filled)
+        {
+            var color = filled ? new Color(217, 165, 32) : new Color(180, 170, 155);
+            int cx = bounds.X + bounds.Width / 2;
+            int cy = bounds.Y + bounds.Height / 2;
+            int r = Math.Min(bounds.Width, bounds.Height) / 2 - 2;
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int rowHalfW = r - Math.Abs(dy);
+                if (rowHalfW <= 0) continue;
+                if (filled)
+                {
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, rowHalfW * 2, 1), color);
+                }
+                else
+                {
+                    // outline only: draw just the two edge pixels of each row
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 2, 1), color);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 2, cy + dy, 2, 1), color);
                 }
             }
         }

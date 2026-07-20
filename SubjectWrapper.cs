@@ -21,6 +21,7 @@ namespace LookupAnythingMobileSearch.Framework
         private readonly MethodInfo? _drawPortraitMethod;
         private readonly MethodInfo? _getDataMethod;
         private readonly PropertyInfo? _targetProperty;
+        private readonly FieldInfo? _targetField;
         private readonly string _className;
         private readonly bool _isMonster;
 
@@ -56,8 +57,10 @@ namespace LookupAnythingMobileSearch.Framework
             _descriptionProperty = type.GetProperty("Description", flags);
             _typeProperty = type.GetProperty("Type", flags);
             _drawPortraitMethod = type.GetMethod("DrawPortrait", flags);
-            _targetProperty = type.GetProperty("Target", flags);
-            _altTargetProperty = _targetProperty == null ? type.GetProperty("Item", flags) : null;
+            _targetField = type.GetField("Target", flags);
+            _targetProperty = _targetField == null ? type.GetProperty("Target", flags) : null;
+            _altTargetProperty = (_targetField == null && _targetProperty == null) ? type.GetProperty("Item", flags) : null;
+            _altTargetField = (_targetField == null && _targetProperty == null && _altTargetProperty == null) ? type.GetField("Item", flags) : null;
             _getDataMethod = ResolveGetDataMethod(type, flags);
 
             // CharacterSubject is used for both villager NPCs and monsters -
@@ -84,6 +87,11 @@ namespace LookupAnythingMobileSearch.Framework
 
         private object? GetTarget()
         {
+            if (_targetField != null)
+            {
+                try { return _targetField.GetValue(_subject); }
+                catch { return null; }
+            }
             if (_targetProperty != null)
             {
                 try { return _targetProperty.GetValue(_subject); }
@@ -94,16 +102,22 @@ namespace LookupAnythingMobileSearch.Framework
                 try { return _altTargetProperty.GetValue(_subject); }
                 catch { return null; }
             }
+            if (_altTargetField != null)
+            {
+                try { return _altTargetField.GetValue(_subject); }
+                catch { return null; }
+            }
             if (!_loggedNoTargetProperty)
             {
                 _loggedNoTargetProperty = true;
-                ModEntry.SMonitor?.Log($"[SubjectWrapper] No 'Target' or 'Item' property found on {_subject.GetType().FullName} - "
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] No 'Target'/'Item' field or property found on {_subject.GetType().FullName} - "
                         + "item sub-category classification and internal-name resolution are disabled for this subject type.",
                         LogLevel.Debug);
             }
             return null;
         }
         private readonly PropertyInfo? _altTargetProperty;
+        private readonly FieldInfo? _altTargetField;
         private static bool _loggedNoTargetProperty;
 
         private bool _internalNameFromTarget;
@@ -198,14 +212,13 @@ namespace LookupAnythingMobileSearch.Framework
         {
             if (_hasData.HasValue) return _hasData.Value;
 
-            // Reliable signal spotted directly in real screenshots: Lookup
-            // Anything appends one or more "*" to a subject's Name to
-            // disambiguate duplicate/leftover registrations of the same
-            // underlying NPC/item (e.g. "Emily", "Emily*", "Emily**").
-            // This is a much more dependable clone marker than trying to
-            // call GetData() via reflection, which turned out to not
-            // reliably distinguish them.
-            if (Name.EndsWith('*'))
+            // Reliable signal confirmed directly from log output: Lookup
+            // Anything appends one or more "·" (middle dot, U+00B7) - NOT
+            // an asterisk as it first appeared in a screenshot - to a
+            // subject's Name to disambiguate duplicate/leftover
+            // registrations of the same underlying NPC/item (e.g.
+            // "Abigail", "Abigail·", "Abigail··").
+            if (Name.EndsWith('\u00B7'))
             {
                 _hasData = false;
                 return false;
@@ -277,11 +290,11 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
-            if (_isMonster && _targetProperty != null)
+            if (_isMonster)
             {
                 try
                 {
-                    if (_targetProperty.GetValue(_subject) is StardewValley.Character target && target.Sprite != null)
+                    if (GetTarget() is StardewValley.Character target && target.Sprite != null)
                     {
                         var sprite = target.Sprite;
                         Rectangle sourceRect = sprite.SourceRect;
