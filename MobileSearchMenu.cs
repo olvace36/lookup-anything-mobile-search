@@ -911,7 +911,11 @@ namespace LookupAnythingMobileSearch.UI
         // font, which read as a confusing stray number next to every row.
         private static void DrawStarShape(SpriteBatch b, Rectangle bounds, bool filled)
         {
-            var color = filled ? new Color(217, 165, 32) : new Color(180, 170, 155);
+            // Previous unfavorited color (light tan/grey) blended into the
+            // parchment background almost invisibly. Use a dark brown
+            // outline instead - always visible against the light
+            // background regardless of favorite state.
+            var color = filled ? new Color(217, 165, 32) : new Color(120, 90, 60);
             int cx = bounds.X + bounds.Width / 2;
             int cy = bounds.Y + bounds.Height / 2;
             int r = Math.Min(bounds.Width, bounds.Height) / 2 - 2;
@@ -925,9 +929,10 @@ namespace LookupAnythingMobileSearch.UI
                 }
                 else
                 {
-                    // outline only: draw just the two edge pixels of each row
-                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 2, 1), color);
-                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 2, cy + dy, 2, 1), color);
+                    // outline only, but 3px thick (not 2px) so it stays
+                    // clearly visible at this small size.
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 3, 1), color);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 3, cy + dy, 3, 1), color);
                 }
             }
         }

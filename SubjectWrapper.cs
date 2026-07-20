@@ -265,23 +265,73 @@ namespace LookupAnythingMobileSearch.Framework
         // neither of which vanilla ids ever use. Not perfect, but matches
         // the same heuristic already used and tested in the companion
         // LookupAnythingItemSources mod.
+        // The general dot/underscore heuristic misses NPCs and monsters
+        // added by mods that set a plain, human-readable internal name
+        // with no namespace prefix at all (confirmed directly from earlier
+        // testing: e.g. Sword & Sorcery's "Cirrus"/"Dandelion"/"Roslin"
+        // and its "Stygium ..." monster family use plain names). Same fix
+        // as Buildings: check against a known vanilla roster instead, and
+        // treat anything else as modded.
+        private static readonly HashSet<string> VanillaNpcs = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Alex", "Elliott", "Harvey", "Sam", "Sebastian", "Shane",
+            "Emily", "Haley", "Leah", "Maru", "Penny", "Abigail", "Caroline",
+            "Clint", "Demetrius", "Dwarf", "Evelyn", "George", "Gus", "Jas",
+            "Jodi", "Kent", "Krobus", "Leo", "Lewis", "Linus", "Marnie",
+            "Mister Qi", "Pam", "Pierre", "Robin", "Sandy", "Vincent",
+            "Willy", "Wizard", "Gunther", "Marlon", "Morris", "Governor",
+            "Bouncer", "Grandpa", "Henchman", "Birdie", "Auctioneer",
+            "Old Mariner", "Welwick", "Merchant", "Bear", "Bat", "Fizz",
+        };
+
+        private static readonly HashSet<string> VanillaMonsters = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Green Slime", "Frost Jelly", "Sludge", "Tiger Slime", "Big Slime",
+            "Bat", "Frost Bat", "Lava Bat", "Iridium Bat", "Haunted Skull",
+            "Bug", "Assassin Bug", "Armored Bug", "Duggy", "Magma Duggy",
+            "Rock Crab", "Lava Crab", "Iridium Crab", "Stick Bug", "Grub",
+            "Fly", "Mutant Grub", "Mutant Fly", "Stone Golem", "Wilderness Golem",
+            "Iridium Golem", "Dust Spirit", "Ghost", "Carbon Ghost", "Putrid Ghost",
+            "Skeleton", "Skeleton Mage", "Metal Head", "Shadow Brute",
+            "Shadow Shaman", "Shadow Sniper", "Squid Kid", "Blue Squid",
+            "Mummy", "Serpent", "Royal Serpent", "Pepper Rex", "Spider",
+            "Magma Sprite", "Magma Sparker", "Dwarvish Sentry", "False Magma Cap",
+            "Hot Head", "Lava Lurk", "Shadow Guy", "Shadow Girl", "Truffle Crab",
+        };
+
+        // Vanilla farm animal / critter species (not individual pet names -
+        // Lookup Anything's search list is species-level, e.g. "Chicken"
+        // as a species entry, not the player's own named hen).
+        private static readonly HashSet<string> VanillaAnimals = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Chicken", "Void Chicken", "Golden Chicken", "Duck", "Rabbit",
+            "Dinosaur", "Ostrich", "Cow", "Goat", "Sheep", "Pig",
+            "Cat", "Dog", "Turtle", "White Cow", "Brown Cow",
+        };
+
         public bool IsFromMod()
         {
-            if (GetCategory() == "Buildings") return IsBuildingFromMod();
+            string cat = GetCategory();
+            if (cat == "Buildings") return IsBuildingFromMod();
+            if (cat == "NPCs") return !VanillaNpcs.Contains(InternalName);
+            if (cat == "Monsters") return !VanillaMonsters.Contains(InternalName);
+            if (cat == "Animals") return !VanillaAnimals.Contains(InternalName);
             string id = InternalName;
             return id.Contains('.') || id.Contains('_');
         }
 
         // A short label naming which mod, if IsFromMod() - just the part
         // before the first '.' or '_', for the "sort by mod" grouping.
-        // Buildings rarely use that naming convention even when modded, so
-        // there's no reliable way to extract a specific mod name from the
-        // building name alone - just group all non-vanilla buildings
-        // together as "Mod" rather than guessing a name.
+        // Buildings/NPCs/Monsters rarely use that naming convention even
+        // when modded, so there's no reliable way to extract a specific
+        // mod name from the plain name alone - just group all non-vanilla
+        // entries in those categories together as "Mod" rather than
+        // guessing a name.
         public string ModGroupLabel()
         {
             if (!IsFromMod()) return "Vanilla";
-            if (GetCategory() == "Buildings") return "Mod";
+            string cat = GetCategory();
+            if (cat == "Buildings" || cat == "NPCs" || cat == "Monsters" || cat == "Animals") return "Mod";
             int dot = InternalName.IndexOf('.');
             int us = InternalName.IndexOf('_');
             int cut = dot >= 0 && (us < 0 || dot < us) ? dot : us;
