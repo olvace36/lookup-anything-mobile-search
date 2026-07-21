@@ -30,6 +30,7 @@ namespace LookupAnythingMobileSearch
         private LookupAnythingBridge? _bridge;
         private List<object>? _monsterSubjectsCache;
         private MobileSearchMenu? _lastSearchMenu;
+        private bool _awaitingDetailReturn;
         private PersistenceManager? _persistence;
         internal static IMonitor? SMonitor;
 
@@ -237,20 +238,65 @@ namespace LookupAnythingMobileSearch
             return result;
         }
 
+        private List<object>? _animalSubjectsCache;
+
+        // Lookup Anything's own search list doesn't include farm animal
+        // species at all (confirmed from the log: no FarmAnimal-related
+        // subject type ever showed up, unlike monsters which at least
+        // appear once encountered) - same situation as monsters, so we
+        // build our own list directly from Data/FarmAnimals the same way
+        // GetMonsterSubjects() does for Data/Monsters.
+        private List<object> GetAnimalSubjects()
+        {
+            if (_animalSubjectsCache != null) return _animalSubjectsCache;
+            var result = new List<object>();
+            if (_bridge == null) { _animalSubjectsCache = result; return result; }
+
+            try
+            {
+                var data = Game1.content.Load<Dictionary<string, object>>("Data/FarmAnimals");
+                foreach (string typeName in data.Keys.Distinct())
+                {
+                    try
+                    {
+                        var fake = new FarmAnimal(typeName, Game1.multiplayer.getNewID(), Game1.player.UniqueMultiplayerID);
+                        object? subject = _bridge.GetSubjectFor(fake);
+                        if (subject != null) result.Add(subject);
+                    }
+                    catch (Exception ex)
+                    {
+                        Monitor.Log($"Skipped farm animal '{typeName}' (couldn't build a preview instance): {ex.Message}", LogLevel.Trace);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log("Error loading Data/FarmAnimals: " + ex.Message, LogLevel.Warn);
+            }
+
+            Monitor.Log($"Built {result.Count} farm animal subjects for search.", LogLevel.Debug);
+            _animalSubjectsCache = result;
+            return result;
+        }
+
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (_bridge == null) return;
 
-            // Everything just closed (e.g. the player closed the Lookup
-            // Anything detail page we opened from our own search menu).
-            // If we still have a search menu saved from before, bring it
-            // back instead of leaving the player dropped out to the game -
-            // this is what makes "select an entry -> view it -> close it"
-            // return to the search list instead of exiting entirely.
+            // Only restore the saved search menu if we specifically just
+            // sent the player into a detail page FROM our own menu (see
+            // the onSelect callback below, which sets this flag). Without
+            // this check, ANY menu closing anywhere in the game (the
+            // inventory, a chest, another mod's menu, the pause menu...)
+            // would trigger e.NewMenu == null and incorrectly pop our
+            // search menu back open on top of it - which is almost
+            // certainly what caused the "closing a menu makes everything
+            // disappear/break" bug reported.
             if (e.NewMenu == null)
             {
-                if (_lastSearchMenu != null)
+                if (_awaitingDetailReturn && _lastSearchMenu != null)
                 {
+                    _awaitingDetailReturn = false;
                     // Recompute layout against the CURRENT viewport before
                     // showing this instance again - without this, stale
                     // absolute-pixel bounds from whenever the menu was
@@ -261,6 +307,15 @@ namespace LookupAnythingMobileSearch
                     Game1.activeClickableMenu = _lastSearchMenu;
                 }
                 return;
+            }
+
+            // Any OTHER menu opening (that isn't the detail page we just
+            // sent the player to) means they navigated away on their own -
+            // don't try to restore our menu once whatever they opened
+            // eventually closes.
+            if (_awaitingDetailReturn && e.NewMenu != _lastSearchMenu)
+            {
+                _awaitingDetailReturn = false;
             }
 
             // ตรวจว่าเป็น SearchMenu ของ Lookup Anything
@@ -283,17 +338,18 @@ namespace LookupAnythingMobileSearch
 
                 var menu = new MobileSearchMenu(subjects, subject =>
                 {
-                    // Don't clear _lastSearchMenu here - selecting an entry
-                    // should still let the player come back to this exact
-                    // menu (with their search/scroll position intact) once
-                    // they close the detail page.
+                    // Mark that we're deliberately sending the player into
+                    // a detail page and expect to bring them back to this
+                    // exact menu once they close it.
+                    _awaitingDetailReturn = true;
                     _bridge.ShowLookupFor(subject);
                 }, GetMonsterSubjects, _persistence, onExplicitClose: () =>
                 {
                     // The player closed the search menu itself (its own X
                     // button or Escape) - don't restore it afterward.
                     _lastSearchMenu = null;
-                });
+                    _awaitingDetailReturn = false;
+                }, animalProvider: GetAnimalSubjects);
 
                 _lastSearchMenu = menu;
                 Game1.activeClickableMenu = menu;

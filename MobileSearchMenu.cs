@@ -49,9 +49,11 @@ namespace LookupAnythingMobileSearch.UI
         private List<Row> _rows = new();
         private readonly Action<object> _onSelect;
         private readonly Func<List<object>>? _monsterProvider;
+        private readonly Func<List<object>>? _animalProvider;
         private readonly PersistenceManager? _persistence;
         private readonly Action? _onExplicitClose;
         private bool _monstersLoaded;
+        private bool _animalsLoaded;
 
         private int _wrapIndex;
         private bool _fullyLoaded;
@@ -97,12 +99,13 @@ namespace LookupAnythingMobileSearch.UI
 
         public MobileSearchMenu(IEnumerable<object> subjects, Action<object> onSelect,
                 Func<List<object>>? monsterProvider = null, PersistenceManager? persistence = null,
-                Action? onExplicitClose = null)
+                Action? onExplicitClose = null, Func<List<object>>? animalProvider = null)
             : base(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height, false)
         {
             _onSelect = onSelect;
             _rawSubjects = subjects.ToList();
             _monsterProvider = monsterProvider;
+            _animalProvider = animalProvider;
             _persistence = persistence;
             _onExplicitClose = onExplicitClose;
 
@@ -179,7 +182,13 @@ namespace LookupAnythingMobileSearch.UI
             _searchBox.Width = _searchBoxBounds.Width - 50;
             _searchBox.Height = _searchBoxBounds.Height;
             _searchIcon.bounds = new Rectangle(_searchBoxBounds.X + 8, _searchBoxBounds.Y + (_searchBoxBounds.Height - 26) / 2, 26, 26);
-            _clearButton.bounds = new Rectangle(_searchBoxBounds.Right + 8, _searchBoxBounds.Y + (_searchBoxBounds.Height - 44) / 2, 44, 44);
+            // Sits INSIDE the right edge of the search box itself (not
+            // to the right of it) - it used to be positioned at
+            // "_searchBoxBounds.Right + 8", but that's the exact same spot
+            // the sort button now occupies, so the two were fully
+            // overlapping and the clear button was effectively unusable.
+            const int clearSize = 36;
+            _clearButton.bounds = new Rectangle(_searchBoxBounds.Right - clearSize - 6, _searchBoxBounds.Y + (_searchBoxBounds.Height - clearSize) / 2, clearSize, clearSize);
             _closeButton.bounds = new Rectangle(xPositionOnScreen + width - 56 - 8, yPositionOnScreen + 8, 56, 56);
             var catLabels = _categories.Select(c => c.Category).ToList();
             RebuildCategoryButtons(catLabels);
@@ -205,8 +214,8 @@ namespace LookupAnythingMobileSearch.UI
                 Game1.mouseCursors, new Rectangle(80, 0, 13, 13), 2f);
 
             _clearButton = new ClickableTextureComponent(
-                new Rectangle(_searchBoxBounds.Right + 8, _searchBoxBounds.Y + (_searchBoxBounds.Height - 44) / 2, 44, 44),
-                Game1.mouseCursors, new Rectangle(322, 498, 12, 12), 3.5f);
+                new Rectangle(_searchBoxBounds.Right - 42, _searchBoxBounds.Y + (_searchBoxBounds.Height - 36) / 2, 36, 36),
+                Game1.mouseCursors, new Rectangle(322, 498, 12, 12), 3f);
 
             _closeButton = new ClickableTextureComponent(
                 new Rectangle(xPositionOnScreen + width - 56 - 8, yPositionOnScreen + 8, 56, 56),
@@ -323,6 +332,14 @@ namespace LookupAnythingMobileSearch.UI
                 return;
             }
 
+            if (!string.IsNullOrEmpty(_searchBox.Text) && _clearButton.bounds.Contains(x, y))
+            {
+                _searchBox.Text = "";
+                _needsFilter = true;
+                Game1.playSound("smallSelect");
+                return;
+            }
+
             if (_searchBoxBounds.Contains(x, y))
             {
                 if (!_searchBox.Selected || !_searchExplicit)
@@ -335,14 +352,6 @@ namespace LookupAnythingMobileSearch.UI
 
             if (_searchBox.Selected) DeselectSearch();
 
-            if (!string.IsNullOrEmpty(_searchBox.Text) && _clearButton.bounds.Contains(x, y))
-            {
-                _searchBox.Text = "";
-                _needsFilter = true;
-                Game1.playSound("smallSelect");
-                return;
-            }
-
             foreach (var btn in _categories)
             {
                 if (!btn.Bounds.Contains(x, y)) continue;
@@ -352,6 +361,7 @@ namespace LookupAnythingMobileSearch.UI
                     _currentSubCategory = "All";
                     foreach (var b2 in _categories) b2.IsSelected = b2.Category == _currentCategory;
                     if (btn.Category == "Monsters") EnsureMonstersLoaded();
+                    if (btn.Category == "Animals") EnsureAnimalsLoaded();
                     RebuildSubCategoryButtons();
                     _needsFilter = true;
                     if (playSound) Game1.playSound("smallSelect");
@@ -472,6 +482,16 @@ namespace LookupAnythingMobileSearch.UI
             List<object> monsters = _monsterProvider.Invoke() ?? new List<object>();
             if (monsters.Count == 0) return;
             _rawSubjects = _rawSubjects.Concat(monsters).ToList();
+            _fullyLoaded = false;
+        }
+
+        private void EnsureAnimalsLoaded()
+        {
+            if (_animalsLoaded || _animalProvider == null) return;
+            _animalsLoaded = true;
+            List<object> animals = _animalProvider.Invoke() ?? new List<object>();
+            if (animals.Count == 0) return;
+            _rawSubjects = _rawSubjects.Concat(animals).ToList();
             _fullyLoaded = false;
         }
 
@@ -599,6 +619,7 @@ namespace LookupAnythingMobileSearch.UI
         {
             var cats = _wrapped.Select(s => s.GetCategory()).Distinct().ToList();
             if (_monsterProvider != null && !cats.Contains("Monsters")) cats.Add("Monsters");
+            if (_animalProvider != null && !cats.Contains("Animals")) cats.Add("Animals");
             cats.Sort();
 
             var list = new List<string> { "All" };
@@ -980,8 +1001,12 @@ namespace LookupAnythingMobileSearch.UI
             // Previous unfavorited color (light tan/grey) blended into the
             // parchment background almost invisibly. Use a dark brown
             // outline instead - always visible against the light
-            // background regardless of favorite state.
-            var color = filled ? new Color(217, 165, 32) : new Color(120, 90, 60);
+            // background regardless of favorite state. The filled (already
+            // bookmarked) gold fill ALSO blended into the parchment at
+            // small size with no border, so it now always draws a dark
+            // outline ring first, then the gold fill inside it.
+            var fillColor = new Color(232, 180, 40);
+            var outlineColor = new Color(90, 60, 20);
             int cx = bounds.X + bounds.Width / 2;
             int cy = bounds.Y + bounds.Height / 2;
             int r = Math.Min(bounds.Width, bounds.Height) / 2 - 2;
@@ -991,14 +1016,19 @@ namespace LookupAnythingMobileSearch.UI
                 if (rowHalfW <= 0) continue;
                 if (filled)
                 {
-                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, rowHalfW * 2, 1), color);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, rowHalfW * 2, 1), fillColor);
+                    // 1px outline ring around the filled diamond so it
+                    // still reads clearly against a similarly-toned
+                    // background instead of just blending into it.
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 2, 1), outlineColor);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 2, cy + dy, 2, 1), outlineColor);
                 }
                 else
                 {
                     // outline only, but 3px thick (not 2px) so it stays
                     // clearly visible at this small size.
-                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 3, 1), color);
-                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 3, cy + dy, 3, 1), color);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx - rowHalfW, cy + dy, 3, 1), outlineColor);
+                    b.Draw(Game1.staminaRect, new Rectangle(cx + rowHalfW - 3, cy + dy, 3, 1), outlineColor);
                 }
             }
         }

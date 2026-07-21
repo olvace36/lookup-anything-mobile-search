@@ -318,6 +318,25 @@ namespace LookupAnythingMobileSearch.Framework
         };
 
         // Monster names known to belong to a specific mod even though the
+        // NPC names known to belong to a specific mod even though the
+        // internal name has no prefix at all - built from NPCs actually
+        // verified during this project's work across several mods.
+        private static readonly Dictionary<string, string> NpcNameToModName = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Mateo"] = "Sword & Sorcery", ["Hector"] = "Sword & Sorcery",
+            ["Cirrus"] = "Sword & Sorcery", ["Roslin"] = "Sword & Sorcery",
+            ["Solomon"] = "Sword & Sorcery", ["Dandelion"] = "Sword & Sorcery",
+            ["Eyvinder"] = "East Scarp", ["Eloise"] = "East Scarp",
+            ["Jacob"] = "East Scarp", ["Jessie"] = "East Scarp",
+            ["Juliet"] = "East Scarp", ["Leximonster"] = "East Scarp",
+            ["MichaelHart"] = "East Scarp", ["EthanHart"] = "East Scarp",
+            ["StellaHart"] = "East Scarp", ["Apples"] = "Stardew Valley Expanded",
+            ["Susan"] = "Stardew Valley Expanded", ["GuntherSilvian"] = "Stardew Valley Expanded",
+            ["Silly"] = "Adventurer's Guild Expanded", ["Gabriel"] = "Adventurer's Guild Expanded",
+            ["Zinnia"] = "Adventurer's Guild Expanded", ["JaviGiex"] = "GI Extra Locations",
+            ["SenS"] = "Lurking in the Dark",
+        };
+
         // internal name itself has no prefix at all (Sword & Sorcery's
         // "Stygium ..." family, for example).
         private static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
@@ -340,6 +359,8 @@ namespace LookupAnythingMobileSearch.Framework
 
             if (cat == "Monsters" && MonsterNameToModName.TryGetValue(InternalName, out string? mName))
                 return mName;
+            if (cat == "NPCs" && NpcNameToModName.TryGetValue(InternalName, out string? nName))
+                return nName;
             if (cat == "Buildings" || cat == "NPCs" || cat == "Monsters" || cat == "Animals") return "Mod";
 
             int dot = InternalName.IndexOf('.');
@@ -372,8 +393,21 @@ namespace LookupAnythingMobileSearch.Framework
                         try { sprite.CurrentFrame = 0; } catch { }
 
                         Rectangle sourceRect = sprite.SourceRect;
-                        int frameW = sprite.SpriteWidth;
-                        int frameH = sprite.SpriteHeight;
+                        // Derive the fit-scale from the SAME rect we're
+                        // about to draw (sourceRect.Width/Height), not the
+                        // separate SpriteWidth/SpriteHeight properties.
+                        // For at least one monster (Frog) those two didn't
+                        // agree - SourceRect cropped a taller region than
+                        // SpriteHeight reported - so scaling against the
+                        // "should be" size while drawing the "actually is"
+                        // rect let part of the next frame in the sheet
+                        // bleed out below the icon box into the row below.
+                        // Basing frameW/frameH on sourceRect itself
+                        // mathematically guarantees the scaled draw can
+                        // never exceed the requested icon size, regardless
+                        // of what SpriteWidth/SpriteHeight claim.
+                        int frameW = sourceRect.Width > 0 ? sourceRect.Width : sprite.SpriteWidth;
+                        int frameH = sourceRect.Height > 0 ? sourceRect.Height : sprite.SpriteHeight;
                         if (target is StardewValley.Monsters.GreenSlime slime)
                         {
                             sourceRect = new Rectangle(32, 120, 16, 24);
@@ -477,8 +511,20 @@ namespace LookupAnythingMobileSearch.Framework
             if (target is StardewValley.Objects.Clothing) return "Clothing";
             if (target is StardewValley.Objects.Furniture) return "Furniture";
             if (target is StardewValley.Tool) return "Tool";
+
+            // Diagnostic: log the real .NET type behind every item that
+            // falls into "Other" (once per distinct type) - this is meant
+            // to catch cases like Boots/starting Tools ending up here
+            // because Lookup Anything's search catalog represents them via
+            // some other wrapper type instead of the real Boots/Tool
+            // class, which the checks above wouldn't match.
+            if (_loggedOtherItemTypes.Add(target.GetType().FullName ?? "?"))
+            {
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] Item falling into 'Other' sub-category: target type = {target.GetType().FullName} (example: {Name})", LogLevel.Debug);
+            }
             return "Other";
         }
+        private static readonly HashSet<string> _loggedOtherItemTypes = new();
 
         // Known vanilla building names (1.6). Buildings don't reliably use
         // the "." or "_" namespaced-id convention that items/monsters do,
