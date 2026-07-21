@@ -254,18 +254,32 @@ namespace LookupAnythingMobileSearch
 
             try
             {
-                var data = Game1.content.Load<Dictionary<string, object>>("Data/FarmAnimals");
-                foreach (string typeName in data.Keys.Distinct())
+                // Load as plain object and walk .Keys via reflection,
+                // rather than casting to Dictionary<string, object>. The
+                // content cache returns this asset as its real concrete
+                // type (Dictionary<string, FarmAnimalData>), and casting
+                // THAT to a different generic instantiation like
+                // Dictionary<string, object> is an invalid, non-covariant
+                // cast in .NET - it throws "Specified cast is not valid"
+                // rather than just failing silently. Reflection-walking
+                // .Keys sidesteps the generic-type mismatch entirely.
+                object rawData = Game1.content.Load<object>("Data/FarmAnimals");
+                var keysProp = rawData.GetType().GetProperty("Keys");
+                if (keysProp?.GetValue(rawData) is System.Collections.IEnumerable keys)
                 {
-                    try
+                    var typeNames = keys.Cast<object>().Select(k => k?.ToString()).Where(k => k != null).Distinct();
+                    foreach (string typeName in typeNames)
                     {
-                        var fake = new FarmAnimal(typeName, Game1.Multiplayer.getNewID(), Game1.player.UniqueMultiplayerID);
-                        object? subject = _bridge.GetSubjectFor(fake);
-                        if (subject != null) result.Add(subject);
-                    }
-                    catch (Exception ex)
-                    {
-                        Monitor.Log($"Skipped farm animal '{typeName}' (couldn't build a preview instance): {ex.Message}", LogLevel.Trace);
+                        try
+                        {
+                            var fake = new FarmAnimal(typeName, Game1.Multiplayer.getNewID(), Game1.player.UniqueMultiplayerID);
+                            object? subject = _bridge.GetSubjectFor(fake);
+                            if (subject != null) result.Add(subject);
+                        }
+                        catch (Exception ex)
+                        {
+                            Monitor.Log($"Skipped farm animal '{typeName}' (couldn't build a preview instance): {ex.Message}", LogLevel.Trace);
+                        }
                     }
                 }
             }

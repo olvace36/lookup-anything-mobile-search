@@ -262,13 +262,18 @@ namespace LookupAnythingMobileSearch.UI
                     .ToDictionary(g => g.Key, g => g.Count());
             if (subCounts.Count == 0) return;
 
-            // Cap how many distinct sub-categories get their own tab -
-            // otherwise a category with many finely-graded "Type" values
-            // (e.g. Items) creates dozens of tabs too narrow to render any
-            // readable label at all. The most common ones get a tab each;
-            // everything past the cap folds into a single "Other" tab.
-            var kept = subCounts.OrderByDescending(kv => kv.Value).Take(MAX_SUBCATEGORIES).Select(kv => kv.Key).OrderBy(s => s).ToList();
-            bool hasOverflow = subCounts.Count > kept.Count;
+            // Sub-categories now come from a small, fixed classification
+            // (Weapon/Ring/Boots/Hat/Clothing/Furniture/Tool/Other for
+            // Items, similar small fixed sets elsewhere) rather than a
+            // wide-open raw string, so there's no need to cap/fold by
+            // frequency anymore - that used to squeeze out legitimately
+            // distinct categories with fewer members (Boots, Tool) in
+            // favor of whichever happened to have more items, dumping
+            // them into "Other" even though they were classified
+            // correctly. Just show a tab for every category that has at
+            // least one member.
+            var kept = subCounts.Keys.OrderBy(s => s).ToList();
+            bool hasOverflow = false;
             _keptSubCategories.Clear();
             foreach (var k in kept) _keptSubCategories.Add(k);
 
