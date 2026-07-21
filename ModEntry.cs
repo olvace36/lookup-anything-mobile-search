@@ -259,7 +259,7 @@ namespace LookupAnythingMobileSearch
                 {
                     try
                     {
-                        var fake = new FarmAnimal(typeName, Game1.multiplayer.getNewID(), Game1.player.UniqueMultiplayerID);
+                        var fake = new FarmAnimal(typeName, Game1.Multiplayer.getNewID(), Game1.player.UniqueMultiplayerID);
                         object? subject = _bridge.GetSubjectFor(fake);
                         if (subject != null) result.Add(subject);
                     }
