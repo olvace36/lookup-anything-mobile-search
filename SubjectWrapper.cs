@@ -359,6 +359,18 @@ namespace LookupAnythingMobileSearch.Framework
                     {
                         var sprite = target.Sprite;
                         Color tint = Color.White;
+
+                        // Force frame 0 (the resting/idle pose) before
+                        // reading the source rect. Without this, we read
+                        // whatever frame the fake monster instance happened
+                        // to be on at construction time - which is often a
+                        // mid-attack or transition frame that looks wrong
+                        // or off-model when cropped down to icon size. This
+                        // affects nearly every monster type (not just
+                        // slimes), since none of them were ever forced to
+                        // a known frame before this fix.
+                        try { sprite.CurrentFrame = 0; } catch { }
+
                         Rectangle sourceRect = sprite.SourceRect;
                         int frameW = sprite.SpriteWidth;
                         int frameH = sprite.SpriteHeight;
