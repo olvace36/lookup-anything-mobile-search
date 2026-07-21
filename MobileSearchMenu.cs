@@ -138,7 +138,7 @@ namespace LookupAnythingMobileSearch.UI
             height = Game1.uiViewport.Height - margin * 2;
 
             int cx = xPositionOnScreen + PADDING;
-            int cw = width - PADDING * 2 - SCROLLBAR_WIDTH - 8 - SCROLL_ARROW_SIZE - 6;
+            int cw = width - PADDING * 2 - SCROLL_ARROW_SIZE - 8;
             int cy = yPositionOnScreen + PADDING + 40;
 
             _searchBoxBounds = new Rectangle(cx + 20, cy, cw - 56 - SORT_BUTTON_WIDTH - 8, SEARCH_BOX_HEIGHT);
@@ -149,11 +149,19 @@ namespace LookupAnythingMobileSearch.UI
             _subCategoryArea = new Rectangle(cx, cy, cw, SubCategoryAreaHeight);
             cy += SubCategoryAreaHeight + 10;
             _resultsArea = new Rectangle(cx + 14, cy, cw - 20, yPositionOnScreen + height - cy - PADDING - 24);
-            _scrollbarArea = new Rectangle(_resultsArea.Right + 8, _resultsArea.Y, SCROLLBAR_WIDTH, _resultsArea.Height);
 
-            int arrowX = _scrollbarArea.Right + 8;
-            _scrollUpButtonBounds = new Rectangle(arrowX, _resultsArea.Y, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
-            _scrollDownButtonBounds = new Rectangle(arrowX, _resultsArea.Bottom - SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
+            // Arrows + scrollbar grouped into ONE column stack (up arrow,
+            // then the scrollbar track filling the middle, then down
+            // arrow) instead of being split into separate columns, so
+            // they read as a single scroll control.
+            int stackX = _resultsArea.Right + 8;
+            _scrollUpButtonBounds = new Rectangle(stackX, _resultsArea.Y, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
+            _scrollDownButtonBounds = new Rectangle(stackX, _resultsArea.Bottom - SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE, SCROLL_ARROW_SIZE);
+            _scrollbarArea = new Rectangle(
+                    stackX + (SCROLL_ARROW_SIZE - SCROLLBAR_WIDTH) / 2,
+                    _scrollUpButtonBounds.Bottom + 4,
+                    SCROLLBAR_WIDTH,
+                    _scrollDownButtonBounds.Y - _scrollUpButtonBounds.Bottom - 8);
         }
 
         // Recomputes layout and re-lays-out existing buttons against the
@@ -364,17 +372,27 @@ namespace LookupAnythingMobileSearch.UI
                 return;
             }
 
-            const int ARROW_SCROLL_AMOUNT = 200;
             if (_scrollUpButtonBounds.Contains(x, y))
             {
-                _scroll = MathHelper.Clamp(_scroll - ARROW_SCROLL_AMOUNT, 0, _maxScroll);
+                _heldArrow = -1;
+                _arrowHeldTime = 0f;
+                DoArrowScroll(-1);
                 if (playSound) Game1.playSound("shwip");
                 return;
             }
             if (_scrollDownButtonBounds.Contains(x, y))
             {
-                _scroll = MathHelper.Clamp(_scroll + ARROW_SCROLL_AMOUNT, 0, _maxScroll);
+                _heldArrow = 1;
+                _arrowHeldTime = 0f;
+                DoArrowScroll(1);
                 if (playSound) Game1.playSound("shwip");
+                return;
+            }
+
+            if (_scrollbarArea.Contains(x, y) && _maxScroll > 0)
+            {
+                _draggingScrollbar = true;
+                SetScrollFromScrollbarY(y);
                 return;
             }
 
@@ -388,8 +406,29 @@ namespace LookupAnythingMobileSearch.UI
             }
         }
 
+        private const int ARROW_SCROLL_AMOUNT = 200;
+        private int _heldArrow; // -1 = up, 1 = down, 0 = none
+        private float _arrowHeldTime;
+        private bool _draggingScrollbar;
+
+        private void DoArrowScroll(int direction)
+        {
+            _scroll = MathHelper.Clamp(_scroll + direction * ARROW_SCROLL_AMOUNT, 0, _maxScroll);
+        }
+
+        private void SetScrollFromScrollbarY(int y)
+        {
+            float ratio = MathHelper.Clamp((y - _scrollbarArea.Y) / (float)_scrollbarArea.Height, 0f, 1f);
+            _scroll = ratio * _maxScroll;
+        }
+
         public override void leftClickHeld(int x, int y)
         {
+            if (_draggingScrollbar)
+            {
+                SetScrollFromScrollbarY(y);
+                return;
+            }
             if (!_dragging) return;
             var cur = new Vector2(x, y);
             float delta = _lastDrag.Y - y;
@@ -404,6 +443,8 @@ namespace LookupAnythingMobileSearch.UI
                 TrySelect((int)_dragStart.X, (int)_dragStart.Y);
             _dragging = false;
             _dragDist = 0;
+            _heldArrow = 0;
+            _draggingScrollbar = false;
         }
 
         public override void receiveScrollWheelAction(int direction)
@@ -509,6 +550,31 @@ namespace LookupAnythingMobileSearch.UI
             if (_lastSearch != text) { _lastSearch = text; _needsFilter = true; }
             if (_searchExplicit && !_searchBox.Selected) DeselectSearch();
             if (_needsFilter) ApplyFilter();
+
+            // Holding an up/down arrow button keeps scrolling: a short
+            // initial delay (so a single tap doesn't double-scroll), then
+            // repeats quickly while held.
+            if (_heldArrow != 0)
+            {
+                const float initialDelay = 0.35f;
+                const float repeatInterval = 0.06f;
+                float dt = (float)time.ElapsedGameTime.TotalSeconds;
+                float prevTime = _arrowHeldTime;
+                _arrowHeldTime += dt;
+                if (prevTime < initialDelay && _arrowHeldTime >= initialDelay)
+                {
+                    DoArrowScroll(_heldArrow);
+                }
+                else if (_arrowHeldTime >= initialDelay)
+                {
+                    float sinceRepeatStart = _arrowHeldTime - initialDelay;
+                    float prevSinceRepeatStart = prevTime - initialDelay;
+                    if ((int)(sinceRepeatStart / repeatInterval) > (int)(prevSinceRepeatStart / repeatInterval))
+                    {
+                        DoArrowScroll(_heldArrow);
+                    }
+                }
+            }
         }
 
         private void LazyLoad()

@@ -61,7 +61,10 @@ namespace LookupAnythingMobileSearch.Framework
             _targetProperty = _targetField == null ? type.GetProperty("Target", flags) : null;
             _altTargetProperty = (_targetField == null && _targetProperty == null) ? type.GetProperty("Item", flags) : null;
             _altTargetField = (_targetField == null && _targetProperty == null && _altTargetProperty == null) ? type.GetField("Item", flags) : null;
-            _getDataMethod = ResolveGetDataMethod(type, flags);
+            // GetData method resolution removed - no longer needed now
+            // that the "·" name-marker check handles clone detection on
+            // its own (see HasRealData below); this also skips a
+            // reflection lookup for every single subject at construction.
 
             // CharacterSubject is used for both villager NPCs and monsters -
             // className alone can't tell them apart. It keeps the actual
@@ -213,50 +216,18 @@ namespace LookupAnythingMobileSearch.Framework
             if (_hasData.HasValue) return _hasData.Value;
 
             // Reliable signal confirmed directly from log output: Lookup
-            // Anything appends one or more "·" (middle dot, U+00B7) - NOT
-            // an asterisk as it first appeared in a screenshot - to a
+            // Anything appends one or more "·" (middle dot, U+00B7) to a
             // subject's Name to disambiguate duplicate/leftover
             // registrations of the same underlying NPC/item (e.g.
-            // "Abigail", "Abigail·", "Abigail··").
-            if (Name.EndsWith('\u00B7'))
-            {
-                _hasData = false;
-                return false;
-            }
-
-            if (_getDataMethod == null)
-            {
-                if (!_loggedMissingGetData)
-                {
-                    _loggedMissingGetData = true;
-                    ModEntry.SMonitor?.Log($"[SubjectWrapper] No GetData method found on {_subject.GetType().FullName} - "
-                            + "real/clone separation is disabled for this subject type.", LogLevel.Debug);
-                }
-                _hasData = true;
-                return true;
-            }
-            try
-            {
-                object?[]? args = _getDataMethod.GetParameters().Length == 0
-                        ? null
-                        : _getDataMethod.GetParameters().Select(p => p.DefaultValue).ToArray();
-                object? result = _getDataMethod.Invoke(_subject, args);
-                if (result is IEnumerable enumerable)
-                {
-                    foreach (var _ in enumerable) { _hasData = true; return true; }
-                    _hasData = false;
-                    return false;
-                }
-                _hasData = result != null;
-                return _hasData.Value;
-            }
-            catch (Exception ex)
-            {
-                ModEntry.SMonitor?.Log($"[SubjectWrapper] GetData() threw for {Name} ({_subject.GetType().Name}): {ex.Message} - "
-                        + "treating as real data to avoid hiding a genuine entry.", LogLevel.Trace);
-                _hasData = true;
-                return true;
-            }
+            // "Abigail", "Abigail·", "Abigail··"). This check alone is
+            // reliable enough on its own - no need to also call GetData()
+            // via reflection (which actually builds the subject's full
+            // lookup page) just to test for real data. That was wasted,
+            // expensive work on literally every single subject in the
+            // list (thousands of items) and was very likely the biggest
+            // single cause of the menu feeling slow/laggy to open.
+            _hasData = !Name.EndsWith('\u00B7');
+            return _hasData.Value;
         }
 
         // Best-effort guess at whether this entry comes from a mod: mod
@@ -327,15 +298,55 @@ namespace LookupAnythingMobileSearch.Framework
         // mod name from the plain name alone - just group all non-vanilla
         // entries in those categories together as "Mod" rather than
         // guessing a name.
+        // Maps known id-prefixes and monster name-sets to friendly mod
+        // names (not the raw author/id prefix) - built from mods actually
+        // verified during this project's work. Unknown prefixes still
+        // fall back to the raw prefix rather than guessing further.
+        private static readonly Dictionary<string, string> PrefixToModName = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DN"] = "Sword & Sorcery",
+            ["KCC"] = "Sword & Sorcery",
+            ["Rafseazz"] = "Ridgeside Village",
+            ["FlashShifter"] = "Stardew Valley Expanded",
+            ["Nova"] = "Eli and Dylan",
+            ["EastScarp"] = "East Scarp",
+            ["Lemurkat"] = "East Scarp",
+            ["mistyspring"] = "GI Extra Locations",
+            ["GiEXredux"] = "GI Extra Locations",
+            ["supert"] = "Adventurer's Guild Expanded",
+            ["7thAxis"] = "Lurking in the Dark",
+        };
+
+        // Monster names known to belong to a specific mod even though the
+        // internal name itself has no prefix at all (Sword & Sorcery's
+        // "Stygium ..." family, for example).
+        private static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Stygium Bat"] = "Sword & Sorcery", ["Stygium Crab"] = "Sword & Sorcery",
+            ["Stygium Golem"] = "Sword & Sorcery", ["Stygium Golem (Blue)"] = "Sword & Sorcery",
+            ["Stygium Head"] = "Sword & Sorcery", ["Stygium Leviathan"] = "Sword & Sorcery",
+            ["Stygium Miner"] = "Sword & Sorcery", ["Stygium Miner Mage"] = "Sword & Sorcery",
+            ["Stygium Party Skeleton"] = "Sword & Sorcery", ["Stygium Rex"] = "Sword & Sorcery",
+            ["Stygium Serpent"] = "Sword & Sorcery", ["Stygium Skeleton"] = "Sword & Sorcery",
+            ["Stygium Skull"] = "Sword & Sorcery", ["Stygium Squid"] = "Sword & Sorcery",
+            ["Stygium False Mushroom"] = "Sword & Sorcery", ["Duskspire Remnant"] = "Sword & Sorcery",
+            ["Duskspire Behemoth"] = "Sword & Sorcery",
+        };
+
         public string ModGroupLabel()
         {
             if (!IsFromMod()) return "Vanilla";
             string cat = GetCategory();
+
+            if (cat == "Monsters" && MonsterNameToModName.TryGetValue(InternalName, out string? mName))
+                return mName;
             if (cat == "Buildings" || cat == "NPCs" || cat == "Monsters" || cat == "Animals") return "Mod";
+
             int dot = InternalName.IndexOf('.');
             int us = InternalName.IndexOf('_');
             int cut = dot >= 0 && (us < 0 || dot < us) ? dot : us;
-            return cut > 0 ? InternalName[..cut] : InternalName;
+            string prefix = cut > 0 ? InternalName[..cut] : InternalName;
+            return PrefixToModName.TryGetValue(prefix, out string? friendly) ? friendly : prefix;
         }
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
@@ -347,14 +358,16 @@ namespace LookupAnythingMobileSearch.Framework
                     if (GetTarget() is StardewValley.Character target && target.Sprite != null)
                     {
                         var sprite = target.Sprite;
+                        Color tint = Color.White;
                         Rectangle sourceRect = sprite.SourceRect;
                         int frameW = sprite.SpriteWidth;
                         int frameH = sprite.SpriteHeight;
-                        if (target is StardewValley.Monsters.GreenSlime)
+                        if (target is StardewValley.Monsters.GreenSlime slime)
                         {
                             sourceRect = new Rectangle(32, 120, 16, 24);
                             frameW = 16;
                             frameH = 24;
+                            tint = slime.color.Value;
                         }
                         float scale = Math.Min(size.X / frameW, size.Y / frameH);
                         float drawWidth = frameW * scale;
@@ -362,17 +375,33 @@ namespace LookupAnythingMobileSearch.Framework
                         var centeredPos = new Vector2(
                                 position.X + (size.X - drawWidth) / 2f,
                                 position.Y + (size.Y - drawHeight) / 2f);
-                        b.Draw(sprite.Texture, centeredPos, sourceRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                        b.Draw(sprite.Texture, centeredPos, sourceRect, tint, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
                         return true;
                     }
                 }
                 catch { }
             }
 
-            if (_drawPortraitMethod == null) return false;
+            if (_drawPortraitMethod == null)
+            {
+                if (_loggedPortraitIssues.Add(_subject.GetType().FullName ?? Name))
+                {
+                    ModEntry.SMonitor?.Log($"[SubjectWrapper] No DrawPortrait method found on {_subject.GetType().FullName} "
+                            + $"(subject: {Name}) - portrait will be blank.", LogLevel.Debug);
+                }
+                return false;
+            }
             try { _drawPortraitMethod.Invoke(_subject, new object[] { b, position, size }); return true; }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                if (_loggedPortraitIssues.Add(Name))
+                {
+                    ModEntry.SMonitor?.Log($"[SubjectWrapper] DrawPortrait threw for '{Name}' ({_subject.GetType().Name}): {ex.Message}", LogLevel.Debug);
+                }
+                return false;
+            }
         }
+        private static readonly HashSet<string> _loggedPortraitIssues = new();
 
         public string GetCategory()
         {
@@ -383,8 +412,19 @@ namespace LookupAnythingMobileSearch.Framework
             if (_className.Contains("CropSubject") || _className.Contains("FruitTreeSubject") || _className.Contains("WildTreeSubject")) return "Crops";
             if (_className.Contains("TerrainFeature") || _className.Contains("BushSubject")) return "Terrain";
             if (_className.Contains("FarmAnimal")) return "Animals";
+
+            // Diagnostic: log every distinct class name that falls into
+            // "Other" (once each) - this is meant to catch cases like
+            // regular Chicken/Duck/Pig not appearing anywhere, in case
+            // Lookup Anything uses a different class name for them that
+            // isn't being matched above.
+            if (_loggedOtherClassNames.Add(_className))
+            {
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] Unclassified subject type falling into 'Other': {_className} (example: {Name})", LogLevel.Debug);
+            }
             return "Other";
         }
+        private static readonly HashSet<string> _loggedOtherClassNames = new();
 
         // Sub-category within the main category, or "" if this category
         // doesn't have a meaningful split. Computed once and cached since
