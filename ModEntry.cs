@@ -284,14 +284,7 @@ namespace LookupAnythingMobileSearch
                             NPC? npc = Game1.getCharacterFromName(name);
                             if (npc == null)
                             {
-                                // Not spawned anywhere yet - attempt a
-                                // careful fallback construction. This is
-                                // the risky part; if the exact NPC
-                                // constructor overload here doesn't match
-                                // the game's, this specific NPC is simply
-                                // skipped (logged at Trace) rather than
-                                // crashing the whole list.
-                                npc = TryConstructFallbackNpc(name);
+                                npc = TryConstructNpcDynamically(name);
                             }
                             if (npc == null) continue;
 
@@ -315,22 +308,19 @@ namespace LookupAnythingMobileSearch
             return result;
         }
 
-        private NPC? TryConstructFallbackNpc(string name)
+        // Instead of hardcoding NPC's constructor signature (guessed
+        // wrong three times in a row without decompiled source to verify
+        // against), this discovers the REAL constructors at runtime via
+        // reflection and tries each one, building argument values by
+        // matching each parameter's type and name to something sensible.
+        // This adapts to whatever the actual signature is instead of
+        // requiring it to be known in advance.
+        private NPC? TryConstructNpcDynamically(string name)
         {
+            string? textureName = null;
+            string? portraitName = null;
             try
             {
-                // Game1.characterData is itself strongly typed as
-                // Dictionary<string, CharacterData> - calling
-                // .TryGetValue on it directly would require resolving the
-                // CharacterData type at compile time regardless of how
-                // the result is stored, since that type is baked into the
-                // method's signature. Load the asset through the content
-                // pipeline as a plain object instead, and use the
-                // non-generic IDictionary interface (which works without
-                // knowing the value type) to look up this entry and read
-                // its Texture/Portrait fields via reflection.
-                string? textureName = null;
-                string? portraitName = null;
                 object rawData = Game1.content.Load<object>("Data/Characters");
                 if (rawData is System.Collections.IDictionary dict && dict.Contains(name))
                 {
@@ -341,17 +331,57 @@ namespace LookupAnythingMobileSearch
                         portraitName = data.GetType().GetProperty("Portrait")?.GetValue(data) as string;
                     }
                 }
-                textureName ??= $"Characters\\{name}";
-                portraitName ??= $"Portraits\\{name}";
+            }
+            catch { }
+            textureName ??= $"Characters\\{name}";
+            portraitName ??= $"Portraits\\{name}";
 
-                var sprite = new AnimatedSprite(textureName, 0, 16, 32);
-                var portrait = Game1.content.Load<Texture2D>(portraitName);
-                return new NPC(sprite, Vector2.Zero, "Town", 2, name, null, portrait, false);
-            }
-            catch
+            AnimatedSprite? sprite = null;
+            try { sprite = new AnimatedSprite(textureName, 0, 16, 32); } catch { }
+            Texture2D? portrait = null;
+            try { portrait = Game1.content.Load<Texture2D>(portraitName); } catch { }
+
+            var constructors = typeof(NPC).GetConstructors()
+                    .OrderBy(c => c.GetParameters().Length)
+                    .ToArray();
+
+            foreach (var ctor in constructors)
             {
-                return null;
+                var pars = ctor.GetParameters();
+                var args = new object?[pars.Length];
+                bool ok = true;
+                foreach (var (p, i) in pars.Select((p, i) => (p, i)))
+                {
+                    string pn = p.Name?.ToLowerInvariant() ?? "";
+                    Type t = p.ParameterType;
+                    if (t == typeof(AnimatedSprite)) args[i] = sprite;
+                    else if (t == typeof(Texture2D)) args[i] = portrait;
+                    else if (t == typeof(Vector2)) args[i] = Vector2.Zero;
+                    else if (t == typeof(string) && pn.Contains("name") && !pn.Contains("map") && !pn.Contains("texture")) args[i] = name;
+                    else if (t == typeof(string) && (pn.Contains("map") || pn.Contains("location"))) args[i] = "Town";
+                    else if (t == typeof(string)) args[i] = name;
+                    else if (t == typeof(int)) args[i] = pn.Contains("facing") || pn.Contains("direction") ? 2 : 0;
+                    else if (t == typeof(bool)) args[i] = false;
+                    else if (!t.IsValueType) args[i] = null; // reference types (schedules, callbacks, etc.) default to null
+                    else
+                    {
+                        try { args[i] = Activator.CreateInstance(t); }
+                        catch { ok = false; break; }
+                    }
+                }
+                if (!ok) continue;
+                if (sprite == null && pars.Any(p => p.ParameterType == typeof(AnimatedSprite))) continue;
+
+                try
+                {
+                    if (ctor.Invoke(args) is NPC npc) return npc;
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Constructor attempt failed for '{name}' ({pars.Length} params): {ex.InnerException?.Message ?? ex.Message}", LogLevel.Trace);
+                }
             }
+            return null;
         }
 
         private List<object>? _animalSubjectsCache;
