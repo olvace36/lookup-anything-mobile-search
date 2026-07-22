@@ -319,11 +319,34 @@ namespace LookupAnythingMobileSearch
         {
             try
             {
-                var data = Game1.characterData.TryGetValue(name, out var d) ? d : null;
-                string textureName = data?.Texture ?? $"Characters\\{name}";
+                // Game1.characterData is itself strongly typed as
+                // Dictionary<string, CharacterData> - calling
+                // .TryGetValue on it directly would require resolving the
+                // CharacterData type at compile time regardless of how
+                // the result is stored, since that type is baked into the
+                // method's signature. Load the asset through the content
+                // pipeline as a plain object instead, and use the
+                // non-generic IDictionary interface (which works without
+                // knowing the value type) to look up this entry and read
+                // its Texture/Portrait fields via reflection.
+                string? textureName = null;
+                string? portraitName = null;
+                object rawData = Game1.content.Load<object>("Data/Characters");
+                if (rawData is System.Collections.IDictionary dict && dict.Contains(name))
+                {
+                    object? data = dict[name];
+                    if (data != null)
+                    {
+                        textureName = data.GetType().GetProperty("Texture")?.GetValue(data) as string;
+                        portraitName = data.GetType().GetProperty("Portrait")?.GetValue(data) as string;
+                    }
+                }
+                textureName ??= $"Characters\\{name}";
+                portraitName ??= $"Portraits\\{name}";
+
                 var sprite = new AnimatedSprite(textureName, 0, 16, 32);
-                var portrait = Game1.content.Load<Texture2D>(data?.Portrait ?? $"Portraits\\{name}");
-                return new NPC(sprite, Vector2.Zero, "Town", 2, name, null, portrait, eventActor: false);
+                var portrait = Game1.content.Load<Texture2D>(portraitName);
+                return new NPC(sprite, Vector2.Zero, "Town", 2, name, null, portrait, false);
             }
             catch
             {
