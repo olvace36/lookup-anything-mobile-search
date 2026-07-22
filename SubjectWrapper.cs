@@ -345,6 +345,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Silly"] = "Adventurer's Guild Expanded", ["Gabriel"] = "Adventurer's Guild Expanded",
             ["Zinnia"] = "Adventurer's Guild Expanded", ["JaviGiex"] = "GI Extra Locations",
             ["SenS"] = "Lurking in the Dark", ["Nora"] = "Nora the Herpetologist",
+            ["Nova.Eli"] = "Eli and Dylan", ["Nova.Dylan"] = "Eli and Dylan", ["Soot"] = "Eli and Dylan",
 
             // East Scarp - verified from Data/Characters entry keys
             ["Eyvinder"] = "East Scarp", ["Eloise"] = "East Scarp", ["Jacob"] = "East Scarp",
@@ -359,6 +360,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["LadySheba"] = "East Scarp", ["LittleGruff"] = "East Scarp", ["LumaJunimo"] = "East Scarp",
             ["OliverK"] = "East Scarp", ["PepperPup"] = "East Scarp", ["RichieTheMacaw"] = "East Scarp",
             ["Rosa"] = "East Scarp", ["ValkyrieDog"] = "East Scarp", ["TristanLK"] = "East Scarp",
+            ["VivienneLK"] = "East Scarp", ["JadeMalic"] = "East Scarp", ["ToriLK"] = "East Scarp",
 
             // Stardew Valley Expanded - verified from CharacterFiles/Portraits
             ["Alesia"] = "Stardew Valley Expanded", ["Andy"] = "Stardew Valley Expanded",
@@ -396,6 +398,10 @@ namespace LookupAnythingMobileSearch.Framework
             ["Richard"] = "Ridgeside Village", ["Sari"] = "Ridgeside Village", ["Sean"] = "Ridgeside Village",
             ["Shanice"] = "Ridgeside Village", ["Shiro"] = "Ridgeside Village", ["Sonny"] = "Ridgeside Village",
             ["Torts"] = "Ridgeside Village", ["Ysabelle"] = "Ridgeside Village",
+            ["Trinnie"] = "Ridgeside Village", ["Undreya"] = "Ridgeside Village",
+            ["Yuuma"] = "Ridgeside Village", ["Zachary"] = "Ridgeside Village",
+            ["Zayne"] = "Ridgeside Village", ["RelicSpirit"] = "Ridgeside Village",
+            ["TreehouseGirl"] = "Ridgeside Village",
         };
 
         // internal name itself has no prefix at all (Sword & Sorcery's
@@ -422,11 +428,24 @@ namespace LookupAnythingMobileSearch.Framework
                 return mName;
             if (cat == "NPCs" && NpcNameToModName.TryGetValue(InternalName, out string? nName))
                 return nName;
-            if (cat == "Buildings" || cat == "NPCs" || cat == "Monsters" || cat == "Animals") return "Mod";
 
+            // Before giving up to a generic "Mod" label, also try
+            // extracting a "." or "_" namespaced prefix and looking THAT
+            // up - this catches any NPC/monster/etc. using a dot-prefixed
+            // internal name (e.g. Eli and Dylan's "Nova.Eli") even if it
+            // isn't individually listed by exact name above. Previously
+            // this category branch returned "Mod" immediately without
+            // ever trying this, so ANY not-explicitly-listed NPC using
+            // this naming convention fell back to the generic label
+            // regardless of whether its prefix was actually known.
             int dot = InternalName.IndexOf('.');
             int us = InternalName.IndexOf('_');
             int cut = dot >= 0 && (us < 0 || dot < us) ? dot : us;
+            if (cut > 0 && PrefixToModName.TryGetValue(InternalName[..cut], out string? prefixMatch))
+                return prefixMatch;
+
+            if (cat == "Buildings" || cat == "NPCs" || cat == "Monsters" || cat == "Animals") return "Mod";
+
             string prefix = cut > 0 ? InternalName[..cut] : InternalName;
             return PrefixToModName.TryGetValue(prefix, out string? friendly) ? friendly : prefix;
         }
@@ -652,11 +671,14 @@ namespace LookupAnythingMobileSearch.Framework
             if (target is StardewValley.Object obj)
             {
                 int cat = obj.Category;
+                if (cat == StardewValley.Object.CookingCategory)
+                {
+                    return "Food/Drink";
+                }
                 if (cat == StardewValley.Object.FruitsCategory
                         || cat == StardewValley.Object.VegetableCategory
                         || cat == StardewValley.Object.FishCategory
                         || cat == StardewValley.Object.GreensCategory
-                        || cat == StardewValley.Object.CookingCategory
                         || cat == StardewValley.Object.EggCategory
                         || cat == StardewValley.Object.MilkCategory
                         || cat == StardewValley.Object.ingredientsCategory

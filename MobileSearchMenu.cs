@@ -50,10 +50,12 @@ namespace LookupAnythingMobileSearch.UI
         private readonly Action<object> _onSelect;
         private readonly Func<List<object>>? _monsterProvider;
         private readonly Func<List<object>>? _animalProvider;
+        private readonly Func<List<object>>? _allVillagersProvider;
         private readonly PersistenceManager? _persistence;
         private readonly Action? _onExplicitClose;
         private bool _monstersLoaded;
         private bool _animalsLoaded;
+        private bool _allVillagersLoaded;
 
         private int _wrapIndex;
         private bool _fullyLoaded;
@@ -108,13 +110,15 @@ namespace LookupAnythingMobileSearch.UI
 
         public MobileSearchMenu(IEnumerable<object> subjects, Action<object> onSelect,
                 Func<List<object>>? monsterProvider = null, PersistenceManager? persistence = null,
-                Action? onExplicitClose = null, Func<List<object>>? animalProvider = null)
+                Action? onExplicitClose = null, Func<List<object>>? animalProvider = null,
+                Func<List<object>>? allVillagersProvider = null)
             : base(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height, false)
         {
             _onSelect = onSelect;
             _rawSubjects = subjects.ToList();
             _monsterProvider = monsterProvider;
             _animalProvider = animalProvider;
+            _allVillagersProvider = allVillagersProvider;
             _persistence = persistence;
             _onExplicitClose = onExplicitClose;
 
@@ -385,6 +389,7 @@ namespace LookupAnythingMobileSearch.UI
                     foreach (var b2 in _categories) b2.IsSelected = b2.Category == _currentCategory;
                     if (btn.Category == "Monsters") EnsureMonstersLoaded();
                     if (btn.Category == "Animals") EnsureAnimalsLoaded();
+                    if (btn.Category == "NPCs") EnsureAllVillagersLoaded();
                     RebuildSubCategoryButtons();
                     _needsFilter = true;
                     if (playSound) Game1.playSound("smallSelect");
@@ -548,6 +553,31 @@ namespace LookupAnythingMobileSearch.UI
             _fullyLoaded = false;
         }
 
+        private void EnsureAllVillagersLoaded()
+        {
+            if (_allVillagersLoaded || _allVillagersProvider == null) return;
+            _allVillagersLoaded = true;
+            List<object> allVillagers = _allVillagersProvider.Invoke() ?? new List<object>();
+            if (allVillagers.Count == 0) return;
+
+            // Dedup against NPCs that already came through the normal
+            // search list (met villagers) - only add ones not already
+            // present, identified by their internal name.
+            var existingNames = new HashSet<string>(
+                    _wrapped.Where(s => s.GetCategory() == "NPCs").Select(s => s.InternalName),
+                    StringComparer.OrdinalIgnoreCase);
+            var newOnes = new List<object>();
+            foreach (var subj in allVillagers)
+            {
+                var wrapped = SubjectWrapper.Create(subj);
+                if (wrapped != null && !existingNames.Contains(wrapped.InternalName))
+                    newOnes.Add(subj);
+            }
+            if (newOnes.Count == 0) return;
+            _rawSubjects = _rawSubjects.Concat(newOnes).ToList();
+            _fullyLoaded = false;
+        }
+
         private void TrySelect(int x, int y)
         {
             if (!_resultsArea.Contains(x, y)) return;
@@ -673,6 +703,7 @@ namespace LookupAnythingMobileSearch.UI
             var cats = _wrapped.Select(s => s.GetCategory()).Distinct().ToList();
             if (_monsterProvider != null && !cats.Contains("Monsters")) cats.Add("Monsters");
             if (_animalProvider != null && !cats.Contains("Animals")) cats.Add("Animals");
+            if (_allVillagersProvider != null && !cats.Contains("NPCs")) cats.Add("NPCs");
             cats.Sort();
 
             var list = new List<string> { "All" };
@@ -850,8 +881,28 @@ namespace LookupAnythingMobileSearch.UI
             DrawCategories(b);
             DrawSubCategories(b);
 
+            var resultsClip = Rectangle.Intersect(_resultsArea, b.GraphicsDevice.Viewport.Bounds);
+            bool canClipResults = resultsClip.Width > 0 && resultsClip.Height > 0;
+            Rectangle prevResultsScissor = default;
+            if (canClipResults)
+            {
+                prevResultsScissor = b.GraphicsDevice.ScissorRectangle;
+                b.End();
+                b.GraphicsDevice.ScissorRectangle = resultsClip;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null,
+                        new RasterizerState { ScissorTestEnable = true });
+            }
+
             b.Draw(Game1.staminaRect, _resultsArea, new Color(60, 45, 30) * 0.15f);
             DrawResults(b);
+
+            if (canClipResults)
+            {
+                b.End();
+                b.GraphicsDevice.ScissorRectangle = prevResultsScissor;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+            }
+
             DrawScrollbar(b);
             DrawScrollArrows(b);
             DrawCount(b);
@@ -919,6 +970,26 @@ namespace LookupAnythingMobileSearch.UI
             int trackLeft = _subCategoryLeftArrowBounds.Right + 4;
             int trackRight = _subCategoryRightArrowBounds.Left - 4;
 
+            // Hard clip the tab-drawing region to the track between the
+            // two arrows - the earlier "skip fully off-screen tabs" check
+            // alone wasn't enough, since a tab that's only PARTIALLY
+            // behind an arrow (its edge overlapping the arrow's zone)
+            // still drew its full label starting from its true position,
+            // visibly overlapping the arrow icon. A GPU scissor rect
+            // guarantees nothing can render into that zone regardless.
+            var clipRect = new Rectangle(trackLeft, _subCategoryArea.Y, Math.Max(1, trackRight - trackLeft), SUBCATEGORY_HEIGHT);
+            var safeClip = Rectangle.Intersect(clipRect, b.GraphicsDevice.Viewport.Bounds);
+            bool canClip = safeClip.Width > 0 && safeClip.Height > 0;
+            Rectangle prevScissor = default;
+            if (canClip)
+            {
+                prevScissor = b.GraphicsDevice.ScissorRectangle;
+                b.End();
+                b.GraphicsDevice.ScissorRectangle = safeClip;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null,
+                        new RasterizerState { ScissorTestEnable = true });
+            }
+
             foreach (var btn in _subCategories)
             {
                 int screenX = btn.Bounds.X - _subCategoryScrollX;
@@ -931,6 +1002,13 @@ namespace LookupAnythingMobileSearch.UI
                 Utility.drawTextWithShadow(b, label, Game1.tinyFont, pos, textColor);
                 if (btn.IsSelected)
                     b.Draw(Game1.staminaRect, new Rectangle(screenX, btn.Bounds.Bottom - 3, btn.Bounds.Width, 3), new Color(122, 74, 43));
+            }
+
+            if (canClip)
+            {
+                b.End();
+                b.GraphicsDevice.ScissorRectangle = prevScissor;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
             }
 
             // Scroll arrows - only meaningfully clickable/visible when

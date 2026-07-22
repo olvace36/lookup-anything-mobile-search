@@ -249,6 +249,88 @@ namespace LookupAnythingMobileSearch
             return result;
         }
 
+        private List<object>? _villagerSubjectsCache;
+
+        // Data/Characters lists every villager regardless of unlock
+        // status, but Lookup Anything's own search list only includes
+        // ones the player has actually met - meaning a locked NPC's
+        // unlock condition (the whole point of the info we added) can
+        // never be looked up until after it no longer matters. Most
+        // "locked" NPCs (Cirrus, Roslin, Eyvinder, etc.) already exist as
+        // real spawned instances sitting in a hidden waiting-room map -
+        // Game1.getCharacterFromName finds those directly with zero
+        // construction risk. Only the rarer NPC that truly hasn't been
+        // instantiated yet (e.g. one gated by a mail-flag UnlockConditions
+        // with no waiting-room home) needs an actual constructed preview,
+        // which is attempted carefully and skipped silently on failure.
+        private List<object> GetAllVillagerSubjects()
+        {
+            if (_villagerSubjectsCache != null) return _villagerSubjectsCache;
+            var result = new List<object>();
+            if (_bridge == null) { _villagerSubjectsCache = result; return result; }
+
+            try
+            {
+                object rawData = Game1.content.Load<object>("Data/Characters");
+                var keysProp = rawData.GetType().GetProperty("Keys");
+                if (keysProp?.GetValue(rawData) is System.Collections.IEnumerable keys)
+                {
+                    foreach (object k in keys)
+                    {
+                        string? name = k?.ToString();
+                        if (name == null) continue;
+                        try
+                        {
+                            NPC? npc = Game1.getCharacterFromName(name);
+                            if (npc == null)
+                            {
+                                // Not spawned anywhere yet - attempt a
+                                // careful fallback construction. This is
+                                // the risky part; if the exact NPC
+                                // constructor overload here doesn't match
+                                // the game's, this specific NPC is simply
+                                // skipped (logged at Trace) rather than
+                                // crashing the whole list.
+                                npc = TryConstructFallbackNpc(name);
+                            }
+                            if (npc == null) continue;
+
+                            object? subject = _bridge!.GetSubjectFor(npc);
+                            if (subject != null) result.Add(subject);
+                        }
+                        catch (Exception ex)
+                        {
+                            Monitor.Log($"Skipped villager '{name}' while building the full NPC list: {ex.Message}", LogLevel.Trace);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log("Error loading Data/Characters for the full NPC list: " + ex.Message, LogLevel.Warn);
+            }
+
+            Monitor.Log($"Built {result.Count} villager subjects for search (including locked/unmet ones).", LogLevel.Debug);
+            _villagerSubjectsCache = result;
+            return result;
+        }
+
+        private NPC? TryConstructFallbackNpc(string name)
+        {
+            try
+            {
+                var data = Game1.characterData.TryGetValue(name, out var d) ? d : null;
+                string textureName = data?.Texture ?? $"Characters\\{name}";
+                var sprite = new AnimatedSprite(textureName, 0, 16, 32);
+                var portrait = Game1.content.Load<Texture2D>(data?.Portrait ?? $"Portraits\\{name}");
+                return new NPC(sprite, Vector2.Zero, "Town", 2, name, null, portrait, eventActor: false);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private List<object>? _animalSubjectsCache;
 
         // Lookup Anything's own search list doesn't include farm animal
@@ -374,7 +456,7 @@ namespace LookupAnythingMobileSearch
                     // button or Escape) - don't restore it afterward.
                     _lastSearchMenu = null;
                     _awaitingDetailReturn = false;
-                }, animalProvider: GetAnimalSubjects);
+                }, animalProvider: GetAnimalSubjects, allVillagersProvider: GetAllVillagerSubjects);
 
                 _lastSearchMenu = menu;
                 Game1.activeClickableMenu = menu;
