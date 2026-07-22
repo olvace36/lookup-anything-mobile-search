@@ -138,7 +138,7 @@ namespace LookupAnythingMobileSearch.UI
 
         private const int CATEGORY_ROWS = 2;
         private const int SUBCATEGORY_ROWS = 1;
-        private const int SUBCATEGORY_ARROW_WIDTH = 22;
+        private const int SUBCATEGORY_ARROW_WIDTH = 40;
         private const int ROW_GAP = 4;
         private const int MAX_SUBCATEGORIES = 6; // beyond this, extras fold into "Other"
         private const int SCROLL_ARROW_SIZE = 40;
@@ -309,7 +309,7 @@ namespace LookupAnythingMobileSearch.UI
             const int tabGap = 4;
             foreach (var sub in list)
             {
-                var textSize = Game1.tinyFont.MeasureString(sub);
+                var textSize = Game1.tinyFont.MeasureString(TL(sub));
                 int btnW = (int)textSize.X + tabPaddingX * 2;
                 _subCategories.Add(new CategoryButton
                 {
@@ -772,7 +772,7 @@ namespace LookupAnythingMobileSearch.UI
 
             if (clones.Count > 0)
             {
-                _rows.Add(new HeaderRow { Text = "\u2014 NO DATA \u2014" });
+                _rows.Add(new HeaderRow { Text = "\u2014 " + T("group.no-data-header") + " \u2014" });
                 clones = SortPlain(clones, _sortMode == SortMode.ByCategory || _sortMode == SortMode.ByMod ? SortMode.NameAsc : _sortMode);
                 AppendRows(clones, true);
             }
@@ -795,7 +795,8 @@ namespace LookupAnythingMobileSearch.UI
                     .OrderBy(g => g.Key);
             foreach (var g in groups)
             {
-                _rows.Add(new HeaderRow { Text = "\u2014 " + g.Key.ToUpperInvariant() + " \u2014" });
+                string headerText = byMod ? g.Key : TL(g.Key);
+                _rows.Add(new HeaderRow { Text = "\u2014 " + headerText.ToUpperInvariant() + " \u2014" });
                 foreach (var s in g.OrderBy(s => s.Name)) _rows.Add(new ItemRow { Subject = s });
             }
         }
@@ -921,9 +922,48 @@ namespace LookupAnythingMobileSearch.UI
             _searchIcon.draw(b, Color.Gray, 1f);
             _searchBox.Draw(b, true);
             if (string.IsNullOrEmpty(_searchBox.Text) && !_searchBox.Selected)
-                Utility.drawTextWithShadow(b, "Tap to search...", Game1.smallFont,
+                Utility.drawTextWithShadow(b, T("search.placeholder"), Game1.smallFont,
                     new Vector2(_searchBox.X + 15, _searchBox.Y + 4), Color.Gray);
         }
+
+        // Maps internal category/subcategory keys (used everywhere for
+        // filtering/comparison logic, kept in English so that logic never
+        // changes) to a translation key - used ONLY when drawing text on
+        // screen. This keeps all the existing comparison/state code
+        // completely untouched while still showing localized labels.
+        private static readonly Dictionary<string, string> LabelTranslationKeys = new(StringComparer.Ordinal)
+        {
+            ["All"] = "cat.all", ["Items"] = "cat.items", ["NPCs"] = "cat.npcs", ["Monsters"] = "cat.monsters",
+            ["Buildings"] = "cat.buildings", ["Animals"] = "cat.animals", ["Other"] = "cat.other",
+            [CAT_FAVORITES] = "cat.favorites", [CAT_RECENT] = "cat.recent",
+
+            ["Weapon"] = "subcat.weapon", ["Ring"] = "subcat.ring", ["Boots"] = "subcat.boots", ["Hat"] = "subcat.hat",
+            ["Clothing"] = "subcat.clothing", ["Furniture"] = "subcat.furniture", ["Tool"] = "subcat.tool",
+            ["Machine"] = "subcat.machine", ["Farm Produce"] = "subcat.farm-produce", ["Food/Drink"] = "subcat.food-drink",
+            ["Seed"] = "subcat.seed", ["Mineral/Gem"] = "subcat.mineral-gem", ["Monster Loot"] = "subcat.monster-loot",
+            ["Tackle"] = "subcat.tackle", ["Skill Book"] = "subcat.skill-book", ["Resource"] = "subcat.resource",
+            ["Junk"] = "subcat.junk", ["Big Craftable"] = "subcat.big-craftable", ["Fencing/Flooring"] = "subcat.fencing-flooring",
+            ["Trinket"] = "subcat.trinket", ["Wallpaper"] = "subcat.wallpaper",
+            ["Romanceable"] = "subcat.romanceable", ["Not romanceable"] = "subcat.not-romanceable",
+            ["Vanilla"] = "subcat.vanilla", ["Mod"] = "subcat.mod", ["Buildable"] = "subcat.buildable",
+            ["Livestock"] = "subcat.livestock", ["Pet"] = "subcat.pet",
+        };
+
+        private static string TL(string internalKey)
+        {
+            if (LabelTranslationKeys.TryGetValue(internalKey, out string? key))
+            {
+                try { return ModEntry.I18n.Get(key); } catch { return internalKey; }
+            }
+            return internalKey;
+        }
+
+        private static string T(string key, object? tokens = null)
+        {
+            try { return tokens == null ? ModEntry.I18n.Get(key) : ModEntry.I18n.Get(key, tokens); }
+            catch { return key; }
+        }
+
 
         private void DrawSortButton(SpriteBatch b)
         {
@@ -932,10 +972,10 @@ namespace LookupAnythingMobileSearch.UI
                 new Color(216, 189, 142), drawShadow: false);
             string label = _sortMode switch
             {
-                SortMode.NameAsc => "A-Z",
-                SortMode.NameDesc => "Z-A",
-                SortMode.ByCategory => "Type",
-                SortMode.ByMod => "Mod",
+                SortMode.NameAsc => T("sort.name-asc"),
+                SortMode.NameDesc => T("sort.name-desc"),
+                SortMode.ByCategory => T("sort.category"),
+                SortMode.ByMod => T("sort.mod"),
                 _ => "?",
             };
             var sz = Game1.smallFont.MeasureString(label);
@@ -954,7 +994,7 @@ namespace LookupAnythingMobileSearch.UI
                     bounds = new Rectangle(bounds.X, bounds.Y - 2, bounds.Width, bounds.Height + 2);
                 drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                     bounds.X, bounds.Y, bounds.Width, bounds.Height, bgColor, drawShadow: false);
-                string label = Truncate(btn.Category, Game1.smallFont, bounds.Width - 12);
+                string label = Truncate(TL(btn.Category), Game1.smallFont, bounds.Width - 12);
                 var labelSize = Game1.smallFont.MeasureString(label);
                 var pos = new Vector2(
                     bounds.X + (bounds.Width - labelSize.X) / 2f,
@@ -966,6 +1006,12 @@ namespace LookupAnythingMobileSearch.UI
         private void DrawSubCategories(SpriteBatch b)
         {
             if (_subCategories.Count == 0) return;
+
+            // Border around the whole sub-category row, so it reads as
+            // one distinct control instead of floating text.
+            var borderColor = new Color(168, 130, 88);
+            b.Draw(Game1.staminaRect, new Rectangle(_subCategoryArea.X, _subCategoryArea.Y, _subCategoryArea.Width, 1), borderColor);
+            b.Draw(Game1.staminaRect, new Rectangle(_subCategoryArea.X, _subCategoryArea.Bottom - 1, _subCategoryArea.Width, 1), borderColor);
 
             int trackLeft = _subCategoryLeftArrowBounds.Right + 4;
             int trackRight = _subCategoryRightArrowBounds.Left - 4;
@@ -995,8 +1041,12 @@ namespace LookupAnythingMobileSearch.UI
                 int screenX = btn.Bounds.X - _subCategoryScrollX;
                 if (screenX + btn.Bounds.Width < trackLeft || screenX > trackRight) continue; // fully off-screen
 
+                // Thin vertical divider before this tab, so adjacent tabs
+                // read as separate rather than running together.
+                b.Draw(Game1.staminaRect, new Rectangle(screenX - 2, btn.Bounds.Y + 4, 1, btn.Bounds.Height - 8), new Color(168, 130, 88) * 0.5f);
+
                 var textColor = btn.IsSelected ? new Color(74, 47, 20) : new Color(140, 110, 80);
-                string label = Truncate(btn.Category, Game1.tinyFont, btn.Bounds.Width - 6);
+                string label = Truncate(TL(btn.Category), Game1.tinyFont, btn.Bounds.Width - 6);
                 var sz = Game1.tinyFont.MeasureString(label);
                 var pos = new Vector2(screenX + (btn.Bounds.Width - sz.X) / 2f, btn.Bounds.Y + 2);
                 Utility.drawTextWithShadow(b, label, Game1.tinyFont, pos, textColor);
@@ -1036,10 +1086,10 @@ namespace LookupAnythingMobileSearch.UI
         {
             if (_rows.Count == 0)
             {
-                string msg = !_fullyLoaded ? "Loading..."
-                        : (_currentCategory == CAT_FAVORITES ? "No favorites yet - tap the star on an entry"
-                        : _currentCategory == CAT_RECENT ? "Nothing viewed yet"
-                        : "No results found - try a shorter search or another tab");
+                string msg = !_fullyLoaded ? T("status.loading")
+                        : (_currentCategory == CAT_FAVORITES ? T("status.no-favorites")
+                        : _currentCategory == CAT_RECENT ? T("status.nothing-viewed")
+                        : T("status.no-results"));
                 var sz = Game1.smallFont.MeasureString(msg);
                 Utility.drawTextWithShadow(b, msg, Game1.smallFont,
                     new Vector2(_resultsArea.X + (_resultsArea.Width - sz.X) / 2f,
@@ -1141,9 +1191,9 @@ namespace LookupAnythingMobileSearch.UI
             float nameW = Game1.smallFont.MeasureString(name).X;
             float tagX = textX + nameW + 8;
             if (isClone)
-                DrawTag(b, "no data", tagX, textY, new Color(210, 210, 210), new Color(120, 120, 120));
+                DrawTag(b, T("tag.no-data"), tagX, textY, new Color(210, 210, 210), new Color(120, 120, 120));
             else if (isLockedNpc)
-                DrawTag(b, "not unlocked", tagX, textY, new Color(224, 208, 176), new Color(122, 90, 48));
+                DrawTag(b, T("tag.not-unlocked"), tagX, textY, new Color(224, 208, 176), new Color(122, 90, 48));
 
             float nameH = Game1.smallFont.MeasureString(name).Y;
             float descY = textY + nameH + 4f;
@@ -1294,15 +1344,15 @@ namespace LookupAnythingMobileSearch.UI
             if (!_fullyLoaded)
             {
                 int pct = _rawSubjects.Count > 0 ? _wrapIndex * 100 / _rawSubjects.Count : 0;
-                text = $"Loading... {pct}%";
+                text = T("status.loading-percent", new { percent = pct });
             }
             else
             {
                 int shown = _rows.Count(r => r is ItemRow);
-                text = $"{shown} shown";
                 string q = (_searchBox.Text ?? "").Trim();
-                if (!string.IsNullOrEmpty(q))
-                    text = $"'{Truncate(q, Game1.smallFont, 100)}': {text}";
+                text = !string.IsNullOrEmpty(q)
+                        ? T("status.shown-count-with-query", new { query = Truncate(q, Game1.smallFont, 100), count = shown })
+                        : T("status.shown-count", new { count = shown });
             }
             var pos = new Vector2(_resultsArea.X, _resultsArea.Bottom + 4);
             b.DrawString(Game1.smallFont, text, pos + new Vector2(1, 1), Color.Black * 0.3f, 0, Vector2.Zero, 0.8f, SpriteEffects.None, 0.99f);

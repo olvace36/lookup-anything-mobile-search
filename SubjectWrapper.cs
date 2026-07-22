@@ -295,6 +295,14 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool IsFromMod()
         {
+            // Defense in depth: a null/empty InternalName previously
+            // crashed the whole update loop (Dictionary.TryGetValue
+            // throws ArgumentNullException on a null key), confirmed from
+            // a real crash log. Guard against it here directly so this
+            // exact crash class can't recur regardless of what future
+            // code path might produce one.
+            if (string.IsNullOrEmpty(InternalName)) return false;
+
             string cat = GetCategory();
             if (cat == "Buildings") return IsBuildingFromMod();
             if (cat == "NPCs") return !VanillaNpcs.Contains(InternalName);
@@ -417,6 +425,24 @@ namespace LookupAnythingMobileSearch.Framework
             ["Stygium Skull"] = "Sword & Sorcery", ["Stygium Squid"] = "Sword & Sorcery",
             ["Stygium False Mushroom"] = "Sword & Sorcery", ["Duskspire Remnant"] = "Sword & Sorcery",
             ["Duskspire Behemoth"] = "Sword & Sorcery",
+            // SVE monster names below are best-effort (spacing guessed
+            // from common naming convention) - confirmed to exist as
+            // real SVE monster sprites, but the exact in-game ID spacing
+            // wasn't verifiable from the files available, so some of
+            // these may not match until confirmed with real evidence.
+            ["Apophis"] = "Stardew Valley Expanded", ["Badlands Serpent"] = "Stardew Valley Expanded",
+            ["Bully Rex"] = "Stardew Valley Expanded", ["Copper Crab"] = "Stardew Valley Expanded",
+            ["Corrupt Bat"] = "Stardew Valley Expanded", ["Corrupt Mummy"] = "Stardew Valley Expanded",
+            ["Corrupt Serpent"] = "Stardew Valley Expanded", ["Corrupt Spirit"] = "Stardew Valley Expanded",
+            ["Dangerous Bat"] = "Stardew Valley Expanded", ["Dangerous Metal Head"] = "Stardew Valley Expanded",
+            ["Evil Bat"] = "Stardew Valley Expanded", ["Evil Mummy"] = "Stardew Valley Expanded",
+            ["Gold Crab"] = "Stardew Valley Expanded", ["Iron Crab"] = "Stardew Valley Expanded",
+            ["Poltergeist"] = "Stardew Valley Expanded", ["Royal Badlands Serpent"] = "Stardew Valley Expanded",
+            ["Sand Scorpion"] = "Stardew Valley Expanded", ["Swamp Golem"] = "Stardew Valley Expanded",
+            ["Swamp Lurk"] = "Stardew Valley Expanded", ["Toxic Bubble"] = "Stardew Valley Expanded",
+            // Ridgeside Village - confirmed from the official wiki's monster list
+            ["Serpentine Beast"] = "Ridgeside Village", ["Corrupt Spirit"] = "Ridgeside Village",
+            ["Serperial"] = "Ridgeside Village", ["Viperial"] = "Ridgeside Village", ["Wraith"] = "Ridgeside Village",
         };
 
         public string ModGroupLabel()

@@ -33,6 +33,7 @@ namespace LookupAnythingMobileSearch
         private bool _awaitingDetailReturn;
         private PersistenceManager? _persistence;
         internal static IMonitor? SMonitor;
+        internal static ITranslationHelper I18n = null!;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
         private const string SearchMenuClassName = "SearchMenu";
@@ -42,6 +43,7 @@ namespace LookupAnythingMobileSearch
         public override void Entry(IModHelper helper)
         {
             SMonitor = Monitor;
+            I18n = helper.Translation;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
         }
 
@@ -206,6 +208,80 @@ namespace LookupAnythingMobileSearch
         // Lookup Anything already parses) purely to hand to its real subject
         // factory, so the resulting page looks and works exactly like
         // looking up a monster you encountered in the field.
+        // The likely real root cause of the persistent monster-icon
+        // issue: GetMonsterSubjects() was constructing every monster via
+        // the generic base Monster(name, position) class regardless of
+        // its actual species. Vanilla monster species each have their own
+        // C# subclass (StardewValley.Monsters.SquidKid, .Bug, .MetalHead,
+        // etc.) whose OWN constructor sets up that species' correct
+        // sprite/frame layout - the generic base class doesn't know any
+        // of that and just falls back to some default, which explains why
+        // the affected monster list was so broad and didn't correlate
+        // with any single pattern (size, vanilla vs mod, etc.) - it hit
+        // any species whose real sprite setup differs from the generic
+        // default. This tries to find and construct the ACTUAL subclass
+        // by name (Stardew's naming convention is consistently the
+        // display name with spaces removed - "Squid Kid" -> SquidKid),
+        // discovering its real constructor via reflection the same way
+        // already proven to work for villager NPCs, rather than guessing
+        // a signature. Falls back to null (caller uses the generic
+        // Monster class as before) for anything this can't resolve -
+        // typically modded monster types with their own custom class name
+        // that doesn't follow this convention.
+        private Monster? TryConstructSpecificMonsterType(string name)
+        {
+            string className = string.Concat(name.Where(c => !char.IsWhiteSpace(c) && c != '\'' && c != '.'));
+            Type? monsterType = typeof(Monster).Assembly.GetType($"StardewValley.Monsters.{className}");
+            if (monsterType == null || !typeof(Monster).IsAssignableFrom(monsterType)) return null;
+
+            var constructors = monsterType.GetConstructors()
+                    .OrderBy(c => c.GetParameters().Length)
+                    .ToArray();
+
+            foreach (var ctor in constructors)
+            {
+                var pars = ctor.GetParameters();
+                var args = new object?[pars.Length];
+                bool ok = true;
+                foreach (var (p, i) in pars.Select((p, i) => (p, i)))
+                {
+                    Type t = p.ParameterType;
+                    string pn = p.Name?.ToLowerInvariant() ?? "";
+                    if (t == typeof(Vector2)) args[i] = Vector2.Zero;
+                    else if (t == typeof(string)) args[i] = name;
+                    else if (t == typeof(int)) args[i] = 0;
+                    else if (t == typeof(bool)) args[i] = false;
+                    else if (t == typeof(float)) args[i] = 0f;
+                    else if (!t.IsValueType) args[i] = null;
+                    else
+                    {
+                        try { args[i] = Activator.CreateInstance(t); }
+                        catch { ok = false; break; }
+                    }
+                }
+                if (!ok) continue;
+
+                try
+                {
+                    if (ctor.Invoke(args) is Monster m)
+                    {
+                        // Same lesson learned from the NPC construction
+                        // crash: guarantee Name is never null/empty
+                        // regardless of which constructor overload matched.
+                        try { if (string.IsNullOrEmpty(m.Name)) m.Name = name; } catch { }
+                        if (string.IsNullOrEmpty(m.Name)) continue;
+                        return m;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Specific-type construction attempt failed for monster '{name}' as {className} "
+                            + $"({pars.Length} params): {ex.InnerException?.Message ?? ex.Message}", LogLevel.Trace);
+                }
+            }
+            return null;
+        }
+
         private List<object> GetMonsterSubjects()
         {
             if (_monsterSubjectsCache != null) {
@@ -221,7 +297,7 @@ namespace LookupAnythingMobileSearch
             {
                 try
                 {
-                    Monster fake = new(name, Vector2.Zero);
+                    Monster fake = TryConstructSpecificMonsterType(name) ?? new Monster(name, Vector2.Zero);
                     TryFixMonsterTexture(fake, name);
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
@@ -374,7 +450,18 @@ namespace LookupAnythingMobileSearch
 
                 try
                 {
-                    if (ctor.Invoke(args) is NPC npc) return npc;
+                    if (ctor.Invoke(args) is NPC npc)
+                    {
+                        // Guarantee Name is set regardless of which
+                        // constructor overload succeeded - a shorter
+                        // overload with no name parameter at all would
+                        // otherwise leave this null, which crashed every
+                        // subsequent Dictionary lookup keyed on it
+                        // (confirmed directly from a real crash log).
+                        try { if (string.IsNullOrEmpty(npc.Name)) npc.Name = name; } catch { }
+                        if (string.IsNullOrEmpty(npc.Name)) continue; // still null somehow - skip rather than risk another crash
+                        return npc;
+                    }
                 }
                 catch (Exception ex)
                 {
