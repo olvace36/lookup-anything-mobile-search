@@ -280,6 +280,19 @@ namespace LookupAnythingMobileSearch.Framework
             "Cat", "Dog", "Turtle", "White Cow", "Brown Cow",
         };
 
+        // Pets (as opposed to livestock/coop-and-barn animals) - checked
+        // by name since there's no distinct C# class separating "pet
+        // species" from "farm animal species" at this level.
+        private static readonly HashSet<string> PetAnimalNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Cat", "Dog", "Turtle",
+        };
+
+        private string ClassifyAnimalSubCategory()
+        {
+            return PetAnimalNames.Contains(InternalName) ? "Pet" : "Livestock";
+        }
+
         public bool IsFromMod()
         {
             string cat = GetCategory();
@@ -420,6 +433,16 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
+            // For monsters: try OUR OWN drawing FIRST, not Lookup
+            // Anything's. Confirmed directly by the user: Lookup
+            // Anything's own detail page has the SAME overflow/bleed bug
+            // for these monsters (Squid Kid etc.) - it's a bug in Lookup
+            // Anything itself, not something introduced by us. Calling
+            // into LA's own method would just import that same bug into
+            // our list too. Our own math (below) actively guards against
+            // the overflow (scale is derived from the exact rect being
+            // drawn, so it mathematically cannot exceed the icon box),
+            // so it's the better default for monsters specifically.
             if (_isMonster)
             {
                 try
@@ -438,24 +461,27 @@ namespace LookupAnythingMobileSearch.Framework
                         // affects nearly every monster type (not just
                         // slimes), since none of them were ever forced to
                         // a known frame before this fix.
-                        try { sprite.CurrentFrame = 0; } catch { }
-
-                        Rectangle sourceRect = sprite.SourceRect;
-                        // Derive the fit-scale from the SAME rect we're
-                        // about to draw (sourceRect.Width/Height), not the
-                        // separate SpriteWidth/SpriteHeight properties.
-                        // For at least one monster (Frog) those two didn't
-                        // agree - SourceRect cropped a taller region than
-                        // SpriteHeight reported - so scaling against the
-                        // "should be" size while drawing the "actually is"
-                        // rect let part of the next frame in the sheet
-                        // bleed out below the icon box into the row below.
-                        // Basing frameW/frameH on sourceRect itself
-                        // mathematically guarantees the scaled draw can
-                        // never exceed the requested icon size, regardless
-                        // of what SpriteWidth/SpriteHeight claim.
-                        int frameW = sourceRect.Width > 0 ? sourceRect.Width : sprite.SpriteWidth;
-                        int frameH = sourceRect.Height > 0 ? sourceRect.Height : sprite.SpriteHeight;
+                        // These "fake" monster instances are built once
+                        // for search-listing purposes and never go through
+                        // a real game Update() loop - so relying on
+                        // AnimatedSprite's own computed SourceRect (which
+                        // multiplies the current frame index by frame
+                        // size to find its position in the sheet) turned
+                        // out to be unreliable across many different
+                        // monster types, not just one or two: sometimes
+                        // it disagreed with SpriteWidth/SpriteHeight,
+                        // sometimes forcing frame 0 didn't stick, and
+                        // various fixes targeting those symptoms
+                        // individually kept resurfacing on other monster
+                        // types. Rather than trust that computed offset at
+                        // all, crop directly from the sheet's fixed
+                        // origin (0,0) using only the declared per-frame
+                        // size - frame 0 always starts at the top-left
+                        // corner of any standard sprite sheet, so this
+                        // sidesteps the unreliable index math entirely.
+                        int frameW = sprite.SpriteWidth;
+                        int frameH = sprite.SpriteHeight;
+                        Rectangle sourceRect = new(0, 0, frameW, frameH);
                         if (target is StardewValley.Monsters.GreenSlime slime)
                         {
                             sourceRect = new Rectangle(32, 120, 16, 24);
@@ -476,24 +502,27 @@ namespace LookupAnythingMobileSearch.Framework
                 catch { }
             }
 
-            if (_drawPortraitMethod == null)
+            // Fallback: Lookup Anything's own DrawPortrait. This is the
+            // primary (and only) path for non-monster subjects, and a
+            // last resort for monsters if our own drawing above failed
+            // for some reason.
+            if (_drawPortraitMethod != null)
             {
-                if (_loggedPortraitIssues.Add(_subject.GetType().FullName ?? Name))
+                try
                 {
-                    ModEntry.SMonitor?.Log($"[SubjectWrapper] No DrawPortrait method found on {_subject.GetType().FullName} "
-                            + $"(subject: {Name}) - portrait will be blank.", LogLevel.Debug);
+                    _drawPortraitMethod.Invoke(_subject, new object[] { b, position, size });
+                    return true;
                 }
-                return false;
-            }
-            try { _drawPortraitMethod.Invoke(_subject, new object[] { b, position, size }); return true; }
-            catch (Exception ex)
-            {
-                if (_loggedPortraitIssues.Add(Name))
+                catch (Exception ex)
                 {
-                    ModEntry.SMonitor?.Log($"[SubjectWrapper] DrawPortrait threw for '{Name}' ({_subject.GetType().Name}): {ex.Message}", LogLevel.Debug);
+                    if (_loggedPortraitIssues.Add(Name))
+                    {
+                        ModEntry.SMonitor?.Log($"[SubjectWrapper] DrawPortrait threw for '{Name}' ({_subject.GetType().Name}): {ex.Message}", LogLevel.Debug);
+                    }
                 }
-                return false;
             }
+
+            return false;
         }
         private static readonly HashSet<string> _loggedPortraitIssues = new();
 
@@ -533,6 +562,7 @@ namespace LookupAnythingMobileSearch.Framework
                 "NPCs" => NpcCanBeRomanced() ? "Romanceable" : "Not romanceable",
                 "Monsters" => IsFromMod() ? "Mod" : "Vanilla",
                 "Buildings" => IsBuildableBuilding() ? "Buildable" : "Other",
+                "Animals" => ClassifyAnimalSubCategory(),
                 _ => "",
             };
             _subCategoryCache = result;
@@ -548,6 +578,57 @@ namespace LookupAnythingMobileSearch.Framework
         // classes (MeleeWeapon, Ring, etc. - all long-stable base-game
         // types) is reliable regardless of how any given item's Type text
         // happens to be worded.
+        private static HashSet<string>? _machineIdsCache;
+        private static readonly HashSet<string> NonProcessingFarmEquipment = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Scarecrow", "Deluxe Scarecrow", "Rarecrow", "Rarecrow #1", "Rarecrow #2",
+            "Rarecrow #3", "Rarecrow #4", "Rarecrow #5", "Rarecrow #6", "Rarecrow #7", "Rarecrow #8",
+            "Sprinkler", "Quality Sprinkler", "Iridium Sprinkler", "Pressure Nozzle",
+        };
+
+        // Data/Machines is what the game itself uses to decide which
+        // placed objects behave as machines (Furnace, Keg, Preserves Jar,
+        // Bee House, Tapper, Mushroom Box, Lightning Rod, Crystalarium,
+        // Seed Maker, incubators, etc.) - reading it directly means every
+        // vanilla AND modded machine is covered automatically, without
+        // hardcoding a name list that would miss new/modded ones. Loaded
+        // as plain object + reflection (not a typed Dictionary) for the
+        // same reason the farm animal fix needed it: the content cache
+        // returns this asset as its own concrete type, and casting that
+        // to a different generic Dictionary instantiation throws
+        // "Specified cast is not valid".
+        private static HashSet<string> GetMachineIds()
+        {
+            if (_machineIdsCache != null) return _machineIdsCache;
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                object rawData = Game1.content.Load<object>("Data/Machines");
+                var keysProp = rawData.GetType().GetProperty("Keys");
+                if (keysProp?.GetValue(rawData) is System.Collections.IEnumerable keys)
+                {
+                    foreach (object k in keys)
+                    {
+                        string? key = k?.ToString();
+                        if (key != null) ids.Add(key);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log("Error loading Data/Machines for item classification: " + ex.Message, LogLevel.Warn);
+            }
+            _machineIdsCache = ids;
+            return ids;
+        }
+
+        private static bool IsMachineItem(StardewValley.Item item)
+        {
+            if (NonProcessingFarmEquipment.Contains(item.Name)) return true;
+            var machineIds = GetMachineIds();
+            return machineIds.Contains(item.QualifiedItemId) || machineIds.Contains(item.ItemId);
+        }
+
         private string ClassifyItemSubCategory()
         {
             object? target = GetTarget();
@@ -559,6 +640,88 @@ namespace LookupAnythingMobileSearch.Framework
             if (target is StardewValley.Objects.Clothing) return "Clothing";
             if (target is StardewValley.Objects.Furniture) return "Furniture";
             if (target is StardewValley.Tool) return "Tool";
+            if (target is StardewValley.Objects.Trinkets.Trinket) return "Trinket";
+            if (target is StardewValley.Objects.Wallpaper) return "Wallpaper";
+            if (target is StardewValley.Item item0 && IsMachineItem(item0)) return "Machine";
+
+            // Farm produce: crops, fish, foraged mushrooms/greens,
+            // preserves (jams/pickles use the Cooking category), and
+            // animal products (eggs/milk). Category constant names
+            // verified directly against the real StardewValley.dll (not
+            // guessed).
+            if (target is StardewValley.Object obj)
+            {
+                int cat = obj.Category;
+                if (cat == StardewValley.Object.FruitsCategory
+                        || cat == StardewValley.Object.VegetableCategory
+                        || cat == StardewValley.Object.FishCategory
+                        || cat == StardewValley.Object.GreensCategory
+                        || cat == StardewValley.Object.CookingCategory
+                        || cat == StardewValley.Object.EggCategory
+                        || cat == StardewValley.Object.MilkCategory
+                        || cat == StardewValley.Object.ingredientsCategory
+                        || cat == StardewValley.Object.syrupCategory)
+                {
+                    return "Farm Produce";
+                }
+                if (cat == StardewValley.Object.GemCategory || cat == StardewValley.Object.mineralsCategory)
+                {
+                    return "Mineral/Gem";
+                }
+                if (cat == StardewValley.Object.monsterLootCategory)
+                {
+                    return "Monster Loot";
+                }
+                if (cat == StardewValley.Object.tackleCategory)
+                {
+                    return "Tackle";
+                }
+                if (cat == StardewValley.Object.skillBooksCategory)
+                {
+                    return "Skill Book";
+                }
+                if (cat == StardewValley.Object.metalResources || cat == StardewValley.Object.buildingResources)
+                {
+                    return "Resource";
+                }
+                if (cat == StardewValley.Object.junkCategory || cat == StardewValley.Object.litterCategory)
+                {
+                    return "Junk";
+                }
+                if (cat == StardewValley.Object.BigCraftableCategory)
+                {
+                    return "Big Craftable";
+                }
+                if (cat == StardewValley.Object.SeedsCategory || cat == StardewValley.Object.fertilizerCategory)
+                {
+                    return "Seed";
+                }
+                if (obj.Name is "Tree Fertilizer" or "Grass Starter")
+                {
+                    return "Seed";
+                }
+            }
+
+            // Fencing and flooring/paths - farm equipment items that
+            // don't process or produce anything (same reasoning as
+            // Scarecrow/Sprinkler), so Data/Machines wouldn't cover them
+            // either. No clean C# type or category constant distinguishes
+            // these from other crafted goods, so this uses a name-pattern
+            // match against the known vanilla naming convention (every
+            // fence is named "... Fence", every floor "... Floor", every
+            // path "... Path") - lower confidence than the type-based
+            // checks above, but a reasonable middle ground.
+            if (target is StardewValley.Item fenceFloorItem)
+            {
+                string n = fenceFloorItem.Name;
+                if (n.EndsWith(" Fence", StringComparison.OrdinalIgnoreCase)
+                        || n.EndsWith(" Floor", StringComparison.OrdinalIgnoreCase)
+                        || n.EndsWith(" Path", StringComparison.OrdinalIgnoreCase)
+                        || n.EndsWith(" Walkway Floor", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "Fencing/Flooring";
+                }
+            }
 
             // Diagnostic: log the real .NET type behind every item that
             // falls into "Other" (once per distinct type) - this is meant

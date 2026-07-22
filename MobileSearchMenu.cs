@@ -63,6 +63,15 @@ namespace LookupAnythingMobileSearch.UI
         private string _currentCategory = "All";
         private readonly List<CategoryButton> _subCategories = new();
         private readonly HashSet<string> _keptSubCategories = new();
+        private int _subCategoryScrollX;
+        private int _subCategoryMaxScrollX;
+        private int _subCategoryTrackWidth;
+        private int _subCategoryVisibleWidth;
+        private bool _draggingSubCategories;
+        private int _subCategoryDragStartX;
+        private int _subCategoryDragStartScrollX;
+        private Rectangle _subCategoryLeftArrowBounds;
+        private Rectangle _subCategoryRightArrowBounds;
         private string _currentSubCategory = "All";
         private SortMode _sortMode = SortMode.NameAsc;
 
@@ -124,7 +133,8 @@ namespace LookupAnythingMobileSearch.UI
         }
 
         private const int CATEGORY_ROWS = 2;
-        private const int SUBCATEGORY_ROWS = 2;
+        private const int SUBCATEGORY_ROWS = 1;
+        private const int SUBCATEGORY_ARROW_WIDTH = 22;
         private const int ROW_GAP = 4;
         private const int MAX_SUBCATEGORIES = 6; // beyond this, extras fold into "Other"
         private const int SCROLL_ARROW_SIZE = 40;
@@ -150,6 +160,8 @@ namespace LookupAnythingMobileSearch.UI
             _categoryArea = new Rectangle(cx, cy, cw, CategoryAreaHeight);
             cy += CategoryAreaHeight + 6;
             _subCategoryArea = new Rectangle(cx, cy, cw, SubCategoryAreaHeight);
+            _subCategoryLeftArrowBounds = new Rectangle(_subCategoryArea.X, _subCategoryArea.Y, SUBCATEGORY_ARROW_WIDTH, SUBCATEGORY_HEIGHT);
+            _subCategoryRightArrowBounds = new Rectangle(_subCategoryArea.Right - SUBCATEGORY_ARROW_WIDTH, _subCategoryArea.Y, SUBCATEGORY_ARROW_WIDTH, SUBCATEGORY_HEIGHT);
             cy += SubCategoryAreaHeight + 10;
             _resultsArea = new Rectangle(cx + 14, cy, cw - 20, yPositionOnScreen + height - cy - PADDING - 24);
 
@@ -282,25 +294,31 @@ namespace LookupAnythingMobileSearch.UI
             if (hasOverflow) list.Add("Other");
             if (!list.Contains(_currentSubCategory)) _currentSubCategory = "All";
 
-            var rows = SplitIntoRows(list, SUBCATEGORY_ROWS);
-            for (int r = 0; r < rows.Count; r++)
+            // Single row, natural width per tab (based on its own text),
+            // laid out left-to-right with no wrapping - horizontal drag
+            // and the arrow buttons scroll through it. This replaces the
+            // old fixed-width multi-row grid, which ran out of room once
+            // there were more than about a dozen sub-categories.
+            int trackX = _subCategoryArea.X + SUBCATEGORY_ARROW_WIDTH + 4;
+            int x = trackX;
+            const int tabPaddingX = 14;
+            const int tabGap = 4;
+            foreach (var sub in list)
             {
-                var rowSubs = rows[r];
-                if (rowSubs.Count == 0) continue;
-                int btnW = Math.Max(60, (_subCategoryArea.Width - (rowSubs.Count - 1) * 4) / rowSubs.Count);
-                int x = _subCategoryArea.X;
-                int y = _subCategoryArea.Y + r * (SUBCATEGORY_HEIGHT + ROW_GAP);
-                foreach (var sub in rowSubs)
+                var textSize = Game1.tinyFont.MeasureString(sub);
+                int btnW = (int)textSize.X + tabPaddingX * 2;
+                _subCategories.Add(new CategoryButton
                 {
-                    _subCategories.Add(new CategoryButton
-                    {
-                        Bounds = new Rectangle(x, y, btnW, SUBCATEGORY_HEIGHT),
-                        Category = sub,
-                        IsSelected = sub == _currentSubCategory
-                    });
-                    x += btnW + 4;
-                }
+                    Bounds = new Rectangle(x, _subCategoryArea.Y, btnW, SUBCATEGORY_HEIGHT),
+                    Category = sub,
+                    IsSelected = sub == _currentSubCategory
+                });
+                x += btnW + tabGap;
             }
+            _subCategoryTrackWidth = x - tabGap - trackX;
+            _subCategoryVisibleWidth = _subCategoryArea.Width - (SUBCATEGORY_ARROW_WIDTH + 4) * 2;
+            _subCategoryMaxScrollX = Math.Max(0, _subCategoryTrackWidth - _subCategoryVisibleWidth);
+            _subCategoryScrollX = Math.Clamp(_subCategoryScrollX, 0, _subCategoryMaxScrollX);
         }
 
         // Splits a label list evenly across up to maxRows rows (first rows
@@ -374,9 +392,25 @@ namespace LookupAnythingMobileSearch.UI
                 return;
             }
 
+            if (_subCategoryLeftArrowBounds.Contains(x, y))
+            {
+                _subCategoryScrollX = Math.Max(0, _subCategoryScrollX - 120);
+                if (playSound) Game1.playSound("smallSelect");
+                return;
+            }
+            if (_subCategoryRightArrowBounds.Contains(x, y))
+            {
+                _subCategoryScrollX = Math.Min(_subCategoryMaxScrollX, _subCategoryScrollX + 120);
+                if (playSound) Game1.playSound("smallSelect");
+                return;
+            }
+
             foreach (var btn in _subCategories)
             {
-                if (!btn.Bounds.Contains(x, y)) continue;
+                // Stored bounds are in un-scrolled "track" space; shift the
+                // click position by the current scroll offset to compare
+                // against them (equivalent to un-scrolling the click).
+                if (!btn.Bounds.Contains(x + _subCategoryScrollX, y)) continue;
                 if (_currentSubCategory != btn.Category)
                 {
                     _currentSubCategory = btn.Category;
@@ -385,6 +419,13 @@ namespace LookupAnythingMobileSearch.UI
                     if (playSound) Game1.playSound("smallSelect");
                 }
                 return;
+            }
+
+            if (_subCategoryArea.Contains(x, y) && _subCategoryMaxScrollX > 0)
+            {
+                _draggingSubCategories = true;
+                _subCategoryDragStartX = x;
+                _subCategoryDragStartScrollX = _subCategoryScrollX;
             }
 
             if (_scrollUpButtonBounds.Contains(x, y))
@@ -439,6 +480,12 @@ namespace LookupAnythingMobileSearch.UI
 
         public override void leftClickHeld(int x, int y)
         {
+            if (_draggingSubCategories)
+            {
+                int delta = _subCategoryDragStartX - x;
+                _subCategoryScrollX = Math.Clamp(_subCategoryDragStartScrollX + delta, 0, _subCategoryMaxScrollX);
+                return;
+            }
             if (_draggingScrollbar)
             {
                 SetScrollFromScrollbarY(y);
@@ -446,9 +493,9 @@ namespace LookupAnythingMobileSearch.UI
             }
             if (!_dragging) return;
             var cur = new Vector2(x, y);
-            float delta = _lastDrag.Y - y;
+            float delta2 = _lastDrag.Y - y;
             _dragDist += Vector2.Distance(_lastDrag, cur);
-            _scroll = MathHelper.Clamp(_scroll + delta, 0, _maxScroll);
+            _scroll = MathHelper.Clamp(_scroll + delta2, 0, _maxScroll);
             _lastDrag = cur;
         }
 
@@ -460,6 +507,7 @@ namespace LookupAnythingMobileSearch.UI
             _dragDist = 0;
             _heldArrow = 0;
             _draggingScrollbar = false;
+            _draggingSubCategories = false;
         }
 
         public override void receiveScrollWheelAction(int direction)
@@ -866,15 +914,43 @@ namespace LookupAnythingMobileSearch.UI
 
         private void DrawSubCategories(SpriteBatch b)
         {
+            if (_subCategories.Count == 0) return;
+
+            int trackLeft = _subCategoryLeftArrowBounds.Right + 4;
+            int trackRight = _subCategoryRightArrowBounds.Left - 4;
+
             foreach (var btn in _subCategories)
             {
+                int screenX = btn.Bounds.X - _subCategoryScrollX;
+                if (screenX + btn.Bounds.Width < trackLeft || screenX > trackRight) continue; // fully off-screen
+
                 var textColor = btn.IsSelected ? new Color(74, 47, 20) : new Color(140, 110, 80);
                 string label = Truncate(btn.Category, Game1.tinyFont, btn.Bounds.Width - 6);
                 var sz = Game1.tinyFont.MeasureString(label);
-                var pos = new Vector2(btn.Bounds.X + (btn.Bounds.Width - sz.X) / 2f, btn.Bounds.Y + 2);
+                var pos = new Vector2(screenX + (btn.Bounds.Width - sz.X) / 2f, btn.Bounds.Y + 2);
                 Utility.drawTextWithShadow(b, label, Game1.tinyFont, pos, textColor);
                 if (btn.IsSelected)
-                    b.Draw(Game1.staminaRect, new Rectangle(btn.Bounds.X, btn.Bounds.Bottom - 3, btn.Bounds.Width, 3), new Color(122, 74, 43));
+                    b.Draw(Game1.staminaRect, new Rectangle(screenX, btn.Bounds.Bottom - 3, btn.Bounds.Width, 3), new Color(122, 74, 43));
+            }
+
+            // Scroll arrows - only meaningfully clickable/visible when
+            // there's something to scroll to in that direction.
+            DrawSubCategoryArrow(b, _subCategoryLeftArrowBounds, left: true, _subCategoryScrollX > 0);
+            DrawSubCategoryArrow(b, _subCategoryRightArrowBounds, left: false, _subCategoryScrollX < _subCategoryMaxScrollX);
+        }
+
+        private static void DrawSubCategoryArrow(SpriteBatch b, Rectangle bounds, bool left, bool enabled)
+        {
+            if (!enabled) return;
+            var color = new Color(122, 74, 43);
+            int cx = bounds.X + bounds.Width / 2;
+            int cy = bounds.Y + bounds.Height / 2;
+            int size = 5;
+            for (int i = 0; i < size; i++)
+            {
+                int xOff = left ? size - i : i;
+                b.Draw(Game1.staminaRect, new Rectangle(cx - size / 2 + xOff, cy - size + i, 2, 2), color);
+                b.Draw(Game1.staminaRect, new Rectangle(cx - size / 2 + xOff, cy + size - i, 2, 2), color);
             }
         }
 
@@ -946,9 +1022,29 @@ namespace LookupAnythingMobileSearch.UI
             if (iconPos.Y >= _resultsArea.Y - iconSize && iconPos.Y < _resultsArea.Bottom)
             {
                 b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X - 2, (int)iconPos.Y - 2, iconSize + 4, iconSize + 4), Color.Black * 0.15f);
-                if (!s.DrawPortrait(b, iconPos, new Vector2(iconSize)))
+
+                // Hard clip via GPU scissor rectangle - guarantees no pixel
+                // can render outside this exact box, regardless of what
+                // the monster's sprite dimensions/frame actually are. The
+                // math-only approach (deriving scale from the source
+                // rect) turned out not to fully prevent the overflow in
+                // practice, so this is a stronger, unconditional fallback.
+                var iconClipRect = new Rectangle((int)iconPos.X, (int)iconPos.Y, iconSize, iconSize);
+                var safeClip = Rectangle.Intersect(iconClipRect, b.GraphicsDevice.Viewport.Bounds);
+                if (safeClip.Width > 0 && safeClip.Height > 0)
                 {
-                    b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X, (int)iconPos.Y, iconSize, iconSize), Color.Gray * 0.3f);
+                    var prevScissor = b.GraphicsDevice.ScissorRectangle;
+                    b.End();
+                    b.GraphicsDevice.ScissorRectangle = safeClip;
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null,
+                            new RasterizerState { ScissorTestEnable = true });
+                    if (!s.DrawPortrait(b, iconPos, new Vector2(iconSize)))
+                    {
+                        b.Draw(Game1.staminaRect, new Rectangle((int)iconPos.X, (int)iconPos.Y, iconSize, iconSize), Color.Gray * 0.3f);
+                    }
+                    b.End();
+                    b.GraphicsDevice.ScissorRectangle = prevScissor;
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
                 }
             }
 

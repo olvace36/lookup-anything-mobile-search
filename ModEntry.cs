@@ -223,6 +223,17 @@ namespace LookupAnythingMobileSearch
                 {
                     Monster fake = new(name, Vector2.Zero);
                     TryFixMonsterTexture(fake, name);
+                    // Force a clean idle frame right when we build this
+                    // instance - not just when OUR OWN list code later
+                    // draws it. The detail page the player opens after
+                    // selecting this exact entry reads its portrait
+                    // straight from THIS SAME instance's current
+                    // animation state (it's the same object, not a fresh
+                    // "real" encounter), so fixing the frame only inside
+                    // our own draw call never affected what the detail
+                    // page shows - this needs to happen at creation time
+                    // to help both.
+                    try { fake.Sprite.CurrentFrame = 0; } catch { }
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
                         result.Add(subject);
