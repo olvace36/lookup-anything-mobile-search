@@ -460,6 +460,24 @@ namespace LookupAnythingMobileSearch
                         // (confirmed directly from a real crash log).
                         try { if (string.IsNullOrEmpty(npc.Name)) npc.Name = name; } catch { }
                         if (string.IsNullOrEmpty(npc.Name)) continue; // still null somehow - skip rather than risk another crash
+
+                        // Explicitly (re-)assign Portrait after
+                        // construction, regardless of whether this
+                        // specific overload had a Texture2D parameter to
+                        // receive it through - confirmed from a real log
+                        // trace that NPCs built via a shorter overload
+                        // (Gabriel, Zinnia, Silly, etc.) ended up with no
+                        // portrait at all, since "portrait" was only ever
+                        // wired in when the chosen constructor happened
+                        // to have a matching parameter.
+                        if (portrait != null)
+                        {
+                            try { npc.Portrait = portrait; }
+                            catch (Exception portraitEx)
+                            {
+                                Monitor.Log($"Couldn't set Portrait directly on constructed NPC '{name}': {portraitEx.Message}", LogLevel.Trace);
+                            }
+                        }
                         return npc;
                     }
                 }
