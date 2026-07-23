@@ -1235,54 +1235,29 @@ namespace LookupAnythingMobileSearch.Framework
         {
             try
             {
-                bool portraitIsFake = npcTarget.Portrait != null && npcTarget.Portrait.Height <= 48;
-                bool needsPortraitFix = npcTarget.Portrait == null || portraitIsFake
-                        || SpriteCropOverrides.ContainsKey(npcTarget.Name) || ForceSpriteOverPortrait.Contains(npcTarget.Name);
+                bool needsFix = SpriteCropOverrides.ContainsKey(npcTarget.Name)
+                        || ForceSpriteOverPortrait.Contains(npcTarget.Name)
+                        || (npcTarget.Portrait != null && npcTarget.Portrait.Height <= 48);
 
-                if (needsPortraitFix)
+                if (needsFix)
                 {
-                    Texture2D? loaded = null;
-                    if (!ForceSpriteOverPortrait.Contains(npcTarget.Name) && !SpriteCropOverrides.ContainsKey(npcTarget.Name))
-                    {
-                        string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
-                                ? overrideName : npcTarget.Name;
-                        try { loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}"); }
-                        catch { /* no real portrait at the standard path */ }
-                        if (loaded != null && loaded.Height <= 48) loaded = null; // still fake-sized, don't use it
-                    }
-
-                    if (loaded == null)
-                    {
-                        // Fall back to cropping a single frame out of the
-                        // real overworld sprite - either using this
-                        // character's specific crop coordinates (e.g.
-                        // JunimoJade's x17,y0,16x16), or the sprite's
-                        // default first frame otherwise. Cropping into a
-                        // NEW small texture (rather than just reusing the
-                        // full multi-frame sheet reference) is essential -
-                        // confirmed directly that reusing the whole sheet
-                        // made Lookup Anything's detail page draw every
-                        // frame stacked together instead of just one.
-                        Texture2D? sourceTex = npcTarget.Sprite?.Texture;
-                        if (sourceTex == null)
-                        {
-                            string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
-                                    ? charOverride : npcTarget.Name;
-                            try { sourceTex = Game1.content.Load<Texture2D>($"Characters\\{characterAssetName}"); }
-                            catch { /* no sprite available either */ }
-                        }
-                        if (sourceTex != null)
-                        {
-                            Rectangle crop = SpriteCropOverrides.TryGetValue(npcTarget.Name, out Rectangle cropOverride)
-                                    ? cropOverride
-                                    : new Rectangle(0, 0, Math.Min(16, sourceTex.Width), Math.Min(32, sourceTex.Height));
-                            loaded = CropTexture(sourceTex, crop);
-                        }
-                    }
-                    if (loaded != null) npcTarget.Portrait = loaded;
+                    // Instead of crafting a fake portrait-shaped image to
+                    // satisfy Lookup Anything's portrait-cropping
+                    // assumptions, explicitly clear Portrait to null -
+                    // monsters have no Portrait at all and Lookup
+                    // Anything's own detail page already draws them
+                    // correctly (full body, no cropping) by falling back
+                    // to their Sprite in that case. Setting Portrait to
+                    // null here should trigger that same built-in
+                    // fallback for these NPCs too, instead of us trying to
+                    // out-guess how it crops/scales a substitute portrait.
+                    npcTarget.Portrait = null;
                 }
 
-                if (npcTarget.Sprite == null && !SpriteCropOverrides.ContainsKey(npcTarget.Name))
+                // Ensure Sprite points to the real texture so whatever
+                // fallback rendering Lookup Anything uses (the same path
+                // that already works for monsters) has real data to draw.
+                if (npcTarget.Sprite?.Texture == null || needsFix)
                 {
                     string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
                             ? charOverride : npcTarget.Name;
@@ -1296,7 +1271,7 @@ namespace LookupAnythingMobileSearch.Framework
             }
             catch (Exception ex)
             {
-                ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeVisualData failed for '{npcTarget.Name}': {ex.Message}", LogLevel.Trace);
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeNpcVisualData failed for '{npcTarget.Name}': {ex.Message}", LogLevel.Trace);
             }
         }
 
@@ -1316,16 +1291,28 @@ namespace LookupAnythingMobileSearch.Framework
             // small cropped sprite frame UP to fill that space
             // (nearest-neighbor, to keep the pixel-art look crisp rather
             // than blurry) instead of pasting it at its tiny natural size.
+            // Preserve aspect ratio - scale by the SAME factor on both
+            // axes (chosen so the content fits within the 64x64 canvas)
+            // and center it, leaving transparent letterboxing on
+            // whichever axis has room to spare. Previously each axis was
+            // scaled independently to fill the full 64x64 square, which
+            // squished tall sprites into short/wide "dwarf" proportions -
+            // confirmed directly by the user.
             const int canvasW = 64;
             const int canvasH = 128;
             var canvasData = new Color[canvasW * canvasH];
-            for (int y = 0; y < canvasH; y++)
+            float uniformScale = Math.Min((float)canvasW / region.Width, (float)canvasH / region.Height);
+            int contentW = (int)(region.Width * uniformScale);
+            int contentH = (int)(region.Height * uniformScale);
+            int offsetX = (canvasW - contentW) / 2;
+            int offsetY = (canvasH - contentH) / 2;
+            for (int y = 0; y < contentH; y++)
             {
-                int srcY = Math.Min(region.Height - 1, y * region.Height / canvasH);
-                for (int x = 0; x < canvasW; x++)
+                int srcY = Math.Min(region.Height - 1, (int)(y / uniformScale));
+                for (int x = 0; x < contentW; x++)
                 {
-                    int srcX = Math.Min(region.Width - 1, x * region.Width / canvasW);
-                    canvasData[y * canvasW + x] = data[srcY * region.Width + srcX];
+                    int srcX = Math.Min(region.Width - 1, (int)(x / uniformScale));
+                    canvasData[(y + offsetY) * canvasW + (x + offsetX)] = data[srcY * region.Width + srcX];
                 }
             }
             var cropped = new Texture2D(source.GraphicsDevice, canvasW, canvasH);
