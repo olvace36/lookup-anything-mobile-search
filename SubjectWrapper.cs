@@ -494,7 +494,15 @@ namespace LookupAnythingMobileSearch.Framework
             {
                 try
                 {
-                    if (GetTarget() is StardewValley.NPC npcTarget && npcTarget.Portrait != null)
+                    object? t = GetTarget();
+                    bool isNpc = t is StardewValley.NPC;
+                    bool hasPortrait = t is StardewValley.NPC n0 && n0.Portrait != null;
+                    if (_loggedPortraitIssues.Add("npc-trace:" + Name))
+                    {
+                        ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC portrait trace for '{Name}': target={(t == null ? "null" : t.GetType().FullName)}, "
+                                + $"isNpc={isNpc}, hasPortrait={hasPortrait}", LogLevel.Debug);
+                    }
+                    if (t is StardewValley.NPC npcTarget && npcTarget.Portrait != null)
                     {
                         var tex = npcTarget.Portrait;
                         // Standard portrait sheets are laid out in 64x64
@@ -534,7 +542,16 @@ namespace LookupAnythingMobileSearch.Framework
             {
                 try
                 {
-                    if (GetTarget() is StardewValley.Character target && target.Sprite != null)
+                    object? mt = GetTarget();
+                    bool isChar = mt is StardewValley.Character;
+                    bool hasSprite = mt is StardewValley.Character c0 && c0.Sprite != null;
+                    bool hasTexture = mt is StardewValley.Character c1 && c1.Sprite?.Texture != null;
+                    if (_loggedPortraitIssues.Add("monster-trace:" + Name))
+                    {
+                        ModEntry.SMonitor?.Log($"[SubjectWrapper] Monster portrait trace for '{Name}': target={(mt == null ? "null" : mt.GetType().FullName)}, "
+                                + $"isCharacter={isChar}, hasSprite={hasSprite}, hasTexture={hasTexture}", LogLevel.Debug);
+                    }
+                    if (mt is StardewValley.Character target && target.Sprite != null)
                     {
                         var sprite = target.Sprite;
                         Color tint = Color.White;
