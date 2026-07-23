@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using HarmonyLib;
 using LookupAnythingMobileSearch.Framework;
 using LookupAnythingMobileSearch.UI;
 using Microsoft.Xna.Framework;
@@ -282,6 +284,89 @@ namespace LookupAnythingMobileSearch
             return null;
         }
 
+        private static bool _variantPatchApplied;
+        private static Type? _genericFieldType;
+        private static Type? _iCustomFieldType;
+
+        // Patches the subject's own GetData method (same technique already
+        // proven working in the companion ItemSources mod) to append a
+        // "found as this variant" info field for our registered variant
+        // entries (e.g. explaining where/when "Corrupt Bat" specifically
+        // appears, on top of the real "Bat" data LA already shows).
+        // Applied lazily the first time we have a real subject instance,
+        // since we need its runtime type to know what to patch.
+        private void EnsureVariantInfoPatchApplied(object sampleSubject)
+        {
+            if (_variantPatchApplied) return;
+            _variantPatchApplied = true;
+            try
+            {
+                Assembly? asm = _bridge?.LookupAnythingAssembly;
+                if (asm == null) return;
+                const string ns = "Pathoschild.Stardew.LookupAnything.Framework";
+                _genericFieldType = asm.GetType($"{ns}.Fields.GenericField");
+                _iCustomFieldType = asm.GetType($"{ns}.Fields.ICustomField");
+                if (_genericFieldType == null || _iCustomFieldType == null)
+                {
+                    Monitor.Log("Couldn't resolve field types for variant info patch.", LogLevel.Trace);
+                    return;
+                }
+
+                Type subjectType = sampleSubject.GetType();
+                var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                MethodInfo? getData = subjectType.GetMethod("GetData", flags, null, Type.EmptyTypes, null);
+                if (getData == null)
+                {
+                    Monitor.Log("Couldn't find GetData method to patch for variant info.", LogLevel.Trace);
+                    return;
+                }
+
+                var harmony = new Harmony(ModManifest.UniqueID);
+                harmony.Patch(getData, postfix: new HarmonyMethod(typeof(ModEntry), nameof(GetData_VariantInfoPostfix)));
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log("Couldn't apply variant-info Harmony patch: " + ex.Message, LogLevel.Warn);
+            }
+        }
+
+        private static void GetData_VariantInfoPostfix(object __instance, ref object __result)
+        {
+            try
+            {
+                if (_genericFieldType == null || _iCustomFieldType == null) return;
+
+                var extraFields = new List<object>();
+
+                if (SubjectWrapper.TryGetVariantSpawnCondition(__instance, out string? displayName, out string? condition) && condition != null)
+                {
+                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                            new object?[] { $"{displayName} appears", condition, null })!);
+                }
+
+                var wrapped = SubjectWrapper.Create(__instance);
+                if (wrapped != null && SubjectWrapper.MonsterCombatTips.TryGetValue(wrapped.InternalName, out string? tip))
+                {
+                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                            new object?[] { "Combat tips", tip, null })!);
+                }
+
+                if (extraFields.Count == 0) return;
+
+                Array extraArray = Array.CreateInstance(_iCustomFieldType, extraFields.Count);
+                for (int i = 0; i < extraFields.Count; i++) extraArray.SetValue(extraFields[i], i);
+
+                MethodInfo concat = typeof(Enumerable).GetMethods()
+                        .First(m => m.Name == "Concat" && m.GetParameters().Length == 2)
+                        .MakeGenericMethod(_iCustomFieldType);
+                __result = concat.Invoke(null, new object[] { __result, extraArray })!;
+            }
+            catch (Exception ex)
+            {
+                SMonitor?.Log("Error adding variant/combat-tip field: " + ex.Message, LogLevel.Trace);
+            }
+        }
+
         private List<object> GetMonsterSubjects()
         {
             if (_monsterSubjectsCache != null) {
@@ -312,6 +397,7 @@ namespace LookupAnythingMobileSearch
                     try { fake.Sprite.CurrentFrame = 0; } catch { }
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
+                        EnsureVariantInfoPatchApplied(subject);
                         result.Add(subject);
                     }
                 }
@@ -320,6 +406,44 @@ namespace LookupAnythingMobileSearch
                     Monitor.Log($"Skipped monster '{name}' (couldn't build a preview instance): {ex.Message}", LogLevel.Trace);
                 }
             }
+            // Add known texture-variant "aliases" as their OWN distinct
+            // search entries too (e.g. "Corrupt Bat" appears as its own
+            // result, showing its actual in-game texture and name), not
+            // just as a search-shortcut to the real "Bat" entry. Built by
+            // wrapping ANOTHER instance of the real underlying monster
+            // (so its stats/wiki-style info stay accurate - they really
+            // are the same monster under the hood) but overriding the
+            // display name and icon to the variant's own.
+            foreach (var kv in SubjectWrapper.MonsterSearchAliases)
+            {
+                string variantName = kv.Key;
+                string realName = kv.Value;
+                try
+                {
+                    Monster variantFake = TryConstructSpecificMonsterType(realName) ?? new Monster(realName, Vector2.Zero);
+                    TryFixMonsterTexture(variantFake, realName);
+                    try { variantFake.Sprite.CurrentFrame = 0; } catch { }
+                    object? variantSubject = _bridge!.GetSubjectFor(variantFake);
+                    if (variantSubject == null) continue;
+
+                    Texture2D? variantTex = null;
+                    string assetKey = string.Concat(variantName.Where(c => !char.IsWhiteSpace(c)));
+                    try { variantTex = Game1.content.Load<Texture2D>($"Characters\\Monsters\\{assetKey}"); }
+                    catch (Exception texEx)
+                    {
+                        Monitor.Log($"Couldn't load variant texture for '{variantName}' (tried '{assetKey}'): {texEx.Message}", LogLevel.Trace);
+                    }
+
+                    SubjectWrapper.MonsterVariantSpawnConditions.TryGetValue(variantName, out string? condition);
+                    SubjectWrapper.RegisterVariant(variantSubject, variantName, realName, variantTex, null, condition);
+                    result.Add(variantSubject);
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Skipped monster variant '{variantName}': {ex.Message}", LogLevel.Trace);
+                }
+            }
+
             Monitor.Log($"Built {result.Count} monster subjects for search.", LogLevel.Debug);
             _monsterSubjectsCache = result;
             return result;

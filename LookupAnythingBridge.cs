@@ -10,6 +10,7 @@ namespace LookupAnythingMobileSearch.Framework
     {
         private readonly IMonitor _monitor;
         private object? _modEntry;
+        public System.Reflection.Assembly? LookupAnythingAssembly => _modEntry?.GetType().Assembly;
         private MethodInfo? _showLookupForMethod; // internal void ShowLookupFor(ISubject subject)
         private FieldInfo? _targetFactoryField;   // private TargetFactory? TargetFactory
         private MethodInfo? _getSearchSubjectsMethod; // IEnumerable<ISubject> GetSearchSubjects()

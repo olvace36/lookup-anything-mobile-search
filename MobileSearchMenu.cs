@@ -539,7 +539,23 @@ namespace LookupAnythingMobileSearch.UI
             _monstersLoaded = true;
             List<object> monsters = _monsterProvider.Invoke() ?? new List<object>();
             if (monsters.Count == 0) return;
-            _rawSubjects = _rawSubjects.Concat(monsters).ToList();
+
+            // Dedup against monsters that already came through the normal
+            // search list (ones the player has actually encountered) -
+            // only add ones not already present, identified by internal
+            // name. Same fix already applied to the NPC loading path.
+            var existingNames = new HashSet<string>(
+                    _wrapped.Where(s => s.GetCategory() == "Monsters").Select(s => s.InternalName),
+                    StringComparer.OrdinalIgnoreCase);
+            var newOnes = new List<object>();
+            foreach (var subj in monsters)
+            {
+                var wrapped = SubjectWrapper.Create(subj);
+                if (wrapped != null && (wrapped.VariantOfInternalName != null || !existingNames.Contains(wrapped.InternalName)))
+                    newOnes.Add(subj);
+            }
+            if (newOnes.Count == 0) return;
+            _rawSubjects = _rawSubjects.Concat(newOnes).ToList();
             _fullyLoaded = false;
         }
 
@@ -549,7 +565,19 @@ namespace LookupAnythingMobileSearch.UI
             _animalsLoaded = true;
             List<object> animals = _animalProvider.Invoke() ?? new List<object>();
             if (animals.Count == 0) return;
-            _rawSubjects = _rawSubjects.Concat(animals).ToList();
+
+            var existingAnimalNames = new HashSet<string>(
+                    _wrapped.Where(s => s.GetCategory() == "Animals").Select(s => s.InternalName),
+                    StringComparer.OrdinalIgnoreCase);
+            var newAnimals = new List<object>();
+            foreach (var subj in animals)
+            {
+                var wrapped = SubjectWrapper.Create(subj);
+                if (wrapped != null && !existingAnimalNames.Contains(wrapped.InternalName))
+                    newAnimals.Add(subj);
+            }
+            if (newAnimals.Count == 0) return;
+            _rawSubjects = _rawSubjects.Concat(newAnimals).ToList();
             _fullyLoaded = false;
         }
 
@@ -821,6 +849,15 @@ namespace LookupAnythingMobileSearch.UI
             if (s.Name.ToLowerInvariant().Contains(qLower)) return true;
             if (s.Description.ToLowerInvariant().Contains(qLower)) return true;
             if (s.InternalName.ToLowerInvariant().Contains(qLower)) return true;
+            // Check known "flavor name" variants that share this entry's
+            // underlying monster (e.g. searching "Corrupt Bat" should
+            // still find "Bat", since that's genuinely the same monster
+            // under the hood).
+            foreach (var kv in SubjectWrapper.MonsterSearchAliases)
+            {
+                if (kv.Key.ToLowerInvariant().Contains(qLower) && string.Equals(kv.Value, s.InternalName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
             return FuzzyContains(s.Name.ToLowerInvariant(), qLower);
         }
 

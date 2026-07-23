@@ -34,7 +34,70 @@ namespace LookupAnythingMobileSearch.Framework
         private string? _subCategoryCache;
 
         public object RawSubject => _subject;
-        public string Name { get; }
+        private readonly string _realName;
+        private string? _nameOverride;
+        public string Name => _nameOverride ?? _realName;
+        public Texture2D? IconTextureOverride;
+        public Rectangle? IconCropOverride;
+
+        // Marks this wrapper as a "variant alias" entry - a known texture
+        // reskin (e.g. "Corrupt Bat") of a real underlying monster (e.g.
+        // "Bat") that shares its exact stats/data, just displayed with a
+        // different name/icon. Lets search and grouping code recognize
+        // these and avoid double-counting them against the real entry.
+        public string? VariantOfInternalName;
+
+        // Variant display overrides keyed by the raw subject reference
+        // (reference equality) - since Create() makes a brand new
+        // wrapper instance every time with no caching, an override set on
+        // one wrapper instance would be lost the next time the same raw
+        // subject gets wrapped again (e.g. when MobileSearchMenu builds
+        // its own internal list). Storing it here, keyed by the actual
+        // subject object, means the constructor can look it up and apply
+        // it automatically regardless of which wrapper instance asks.
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, VariantInfo> _variantRegistry = new();
+        private sealed class VariantInfo
+        {
+            public string? DisplayName;
+            public string? RealInternalName;
+            public Texture2D? Icon;
+            public Rectangle? IconCrop;
+            public string? SpawnCondition;
+        }
+
+        public static void RegisterVariant(object rawSubject, string displayName, string realInternalName, Texture2D? icon, Rectangle? iconCrop, string? spawnCondition = null)
+        {
+            _variantRegistry.AddOrUpdate(rawSubject, new VariantInfo
+            {
+                DisplayName = displayName,
+                RealInternalName = realInternalName,
+                Icon = icon,
+                IconCrop = iconCrop,
+                SpawnCondition = spawnCondition,
+            });
+        }
+
+        public static bool TryGetVariantSpawnCondition(object rawSubject, out string? displayName, out string? spawnCondition)
+        {
+            if (_variantRegistry.TryGetValue(rawSubject, out VariantInfo? info))
+            {
+                displayName = info.DisplayName;
+                spawnCondition = info.SpawnCondition;
+                return spawnCondition != null;
+            }
+            displayName = null;
+            spawnCondition = null;
+            return false;
+        }
+
+        public void SetVariantDisplay(string displayName, string internalNameOfReal, Texture2D? icon, Rectangle? iconCrop)
+        {
+            _nameOverride = displayName;
+            VariantOfInternalName = internalNameOfReal;
+            IconTextureOverride = icon;
+            IconCropOverride = iconCrop;
+        }
+
         public string Description { get; }
         public string SubjectType { get; }
         public bool IsValid { get; }
@@ -73,12 +136,20 @@ namespace LookupAnythingMobileSearch.Framework
             FieldInfo? targetTypeField = type.GetField("TargetType", flags);
             _isMonster = targetTypeField?.GetValue(subject)?.ToString() == "Monster";
 
-            Name = GetValue<string>(_nameProperty) ?? "Unknown";
+            _realName = GetValue<string>(_nameProperty) ?? "Unknown";
             Description = GetValue<string>(_descriptionProperty) ?? "";
             SubjectType = GetValue<string>(_typeProperty) ?? "";
             IsValid = _nameProperty != null;
 
             InternalName = ComputeInternalName();
+
+            if (_variantRegistry.TryGetValue(subject, out VariantInfo? variant))
+            {
+                _nameOverride = variant.DisplayName;
+                VariantOfInternalName = variant.RealInternalName;
+                IconTextureOverride = variant.Icon;
+                IconCropOverride = variant.IconCrop;
+            }
         }
 
         private T? GetValue<T>(PropertyInfo? prop)
@@ -268,6 +339,7 @@ namespace LookupAnythingMobileSearch.Framework
             "Mummy", "Serpent", "Royal Serpent", "Pepper Rex", "Spider",
             "Magma Sprite", "Magma Sparker", "Dwarvish Sentry", "False Magma Cap",
             "Hot Head", "Lava Lurk", "Shadow Guy", "Shadow Girl", "Truffle Crab",
+            "Spiker", "Crow", "Fireball", "Frog", "Angry Roger", "Cat", "Skeleton Warrior",
         };
 
         // Vanilla farm animal / critter species (not individual pet names -
@@ -439,6 +511,11 @@ namespace LookupAnythingMobileSearch.Framework
             ["Stygium Serpent"] = "Sword & Sorcery", ["Stygium Skeleton"] = "Sword & Sorcery",
             ["Stygium Skull"] = "Sword & Sorcery", ["Stygium Squid"] = "Sword & Sorcery",
             ["Stygium False Mushroom"] = "Sword & Sorcery", ["Duskspire Remnant"] = "Sword & Sorcery",
+            ["Stygium Lurk"] = "Sword & Sorcery", ["Stygium Sentry"] = "Sword & Sorcery",
+            ["Stygium Duggy"] = "Sword & Sorcery", ["Stygium Golem (Purple)"] = "Sword & Sorcery",
+            ["Stygium Mushroom"] = "Sword & Sorcery", ["Stygium Mushroom Duggy"] = "Sword & Sorcery",
+            ["Stygium Droplet"] = "Sword & Sorcery",
+            ["Stygium Skeleton (Rare)"] = "Sword & Sorcery",
             ["Duskspire Behemoth"] = "Sword & Sorcery",
             // Stardew Valley Expanded - confirmed from the official wiki
             // (SVE adds only 6-8 new monster species total; several names
@@ -446,20 +523,26 @@ namespace LookupAnythingMobileSearch.Framework
             // be variant/danger-mode reskins, not separate new species).
             ["Apophis"] = "Stardew Valley Expanded", ["Badlands Serpent"] = "Stardew Valley Expanded",
             ["Corrupt Mummy"] = "Stardew Valley Expanded", ["Corrupt Serpent"] = "Stardew Valley Expanded",
+            ["Corrupt Spirit"] = "Stardew Valley Expanded",
             ["Fallen Adventurer"] = "Stardew Valley Expanded",
             ["Highlands Golem"] = "Stardew Valley Expanded", ["Highlands Sprite"] = "Stardew Valley Expanded",
+            ["Bully Rex"] = "Stardew Valley Expanded", ["Poltergeist"] = "Stardew Valley Expanded",
+            ["Sand Scorpion"] = "Stardew Valley Expanded", ["Swamp Golem"] = "Stardew Valley Expanded",
+            ["Swamp Lurk"] = "Stardew Valley Expanded", ["Swamp Putrid Ghost"] = "Stardew Valley Expanded",
+            ["Toxic Bubble"] = "Stardew Valley Expanded", ["Legendary Gold Slime"] = "Stardew Valley Expanded",
+            ["Legendary Purple Mushroom Crab"] = "Stardew Valley Expanded", ["Legendary Sand Scorpion"] = "Stardew Valley Expanded",
+            ["Copper Crab"] = "Stardew Valley Expanded", ["Gold Crab"] = "Stardew Valley Expanded",
+            ["Iron Crab"] = "Stardew Valley Expanded", ["Royal Badlands Serpent"] = "Stardew Valley Expanded",
+            ["Swamp Flower Crab"] = "Stardew Valley Expanded",
             // Ridgeside Village - confirmed from the official wiki's monster list
-            ["Serpentine Beast"] = "Ridgeside Village",
-            ["Serperial"] = "Ridgeside Village", ["Viperial"] = "Ridgeside Village", ["Wraith"] = "Ridgeside Village",
-            // "Corrupt Spirit" exists as a distinct monster in BOTH SVE
-            // and Ridgeside Village (confirmed on both official wikis) -
-            // a genuine name collision between two unrelated mods. Only
-            // one can be listed here; kept under Ridgeside Village since
-            // that's the more specific/recent source checked. If both
-            // mods are installed together this label may be wrong for
-            // one of them - there's no way to disambiguate from the name
-            // alone.
-            ["Corrupt Spirit"] = "Ridgeside Village",
+            ["Serpentine Beast"] = "Ridgeside Village", ["Beast 1"] = "Ridgeside Village",
+            ["Beast 2"] = "Ridgeside Village", ["Beast 3"] = "Ridgeside Village",
+            ["Serperial"] = "Ridgeside Village", ["Corrupted Spirit"] = "Ridgeside Village",
+            ["Viperial"] = "Ridgeside Village", ["Wraith"] = "Ridgeside Village",
+            // No longer a collision - confirmed from RSV's own wiki that
+            // its monster is actually spelled "Corrupted Spirit" (with a
+            // "d"), distinct from SVE's "Corrupt Spirit". Moved to the
+            // SVE list above where it belongs.
         };
 
         public string ModGroupLabel()
@@ -470,7 +553,7 @@ namespace LookupAnythingMobileSearch.Framework
             if (_loggedModGroupTrace.Add(Name))
             {
                 ModEntry.SMonitor?.Log($"[SubjectWrapper] ModGroupLabel trace for '{Name}': category={cat}, InternalName='{InternalName}', "
-                        + $"inNpcTable={NpcNameToModName.ContainsKey(InternalName)}", LogLevel.Debug);
+                        + $"inNpcTable={NpcNameToModName.ContainsKey(InternalName)}, inMonsterTable={MonsterNameToModName.ContainsKey(InternalName)}", LogLevel.Debug);
             }
 
             if (cat == "Monsters" && MonsterNameToModName.TryGetValue(InternalName, out string? mName))
@@ -501,6 +584,16 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
+            if (IconTextureOverride != null)
+            {
+                var crop = IconCropOverride ?? new Rectangle(0, 0, IconTextureOverride.Width, IconTextureOverride.Height);
+                float ovScale = Math.Min(size.X / crop.Width, size.Y / crop.Height);
+                float ovW = crop.Width * ovScale;
+                float ovH = crop.Height * ovScale;
+                var ovPos = new Vector2(position.X + (size.X - ovW) / 2f, position.Y + (size.Y - ovH) / 2f);
+                b.Draw(IconTextureOverride, ovPos, crop, Color.White, 0f, Vector2.Zero, ovScale, SpriteEffects.None, 1f);
+                return true;
+            }
             // For NPCs: also try OUR OWN drawing first, same reasoning as
             // monsters below. Lookup Anything's own DrawPortrait succeeds
             // without throwing for these (confirmed - no error logged)
@@ -798,6 +891,18 @@ namespace LookupAnythingMobileSearch.Framework
                         // sidesteps the unreliable index math entirely.
                         int frameW = sprite.SpriteWidth;
                         int frameH = sprite.SpriteHeight;
+                        // Sanity check: if the reported frame height
+                        // exactly equals the WHOLE sheet's height, that's
+                        // a strong sign it's incorrectly reporting the
+                        // full multi-frame sheet as if it were a single
+                        // frame (confirmed directly: one monster reported
+                        // 128 tall when the real single frame was only
+                        // 64) - assume 2 frames stacked vertically and use
+                        // half the height instead.
+                        if (frameH == sprite.Texture.Height && frameH > 64)
+                        {
+                            frameH /= 2;
+                        }
                         Rectangle sourceRect = new(0, 0, frameW, frameH);
                         if (target is StardewValley.Monsters.GreenSlime slime)
                         {
@@ -908,6 +1013,77 @@ namespace LookupAnythingMobileSearch.Framework
         // decompressed) matches a small 16x32 sprite far better than a
         // 64x64 portrait, so this override applies to the Characters\
         // path specifically.
+        // Search aliases: "flavor name" texture variants confirmed (from
+        // the actual mod's own data files) to share the SAME underlying
+        // Data/Monsters entry as a vanilla monster - no separate stats or
+        // name of their own exists in the game data, they're just a
+        // reskin applied at spawn time by the mod's own code. Mapping
+        // these lets a player search for the name they actually saw in a
+        // quest or in-game encounter (e.g. "Corrupt Bat") and still find
+        // the real entry, even though the result will show as the
+        // vanilla monster's own name/stats (which is factually accurate -
+        // they really are the same monster underneath). Only includes
+        // pairings confirmed with reasonably high confidence from actual
+        // mod source; many other "Dangerous/Legendary" variant names seen
+        // in mod files aren't included yet since their real underlying
+        // monster isn't confirmed.
+        internal static readonly Dictionary<string, string> MonsterSearchAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Wilderness Golem Spring"] = "Wilderness Golem", ["Wilderness Golem Summer"] = "Wilderness Golem",
+            ["Wilderness Golem Fall"] = "Wilderness Golem", ["Wilderness Golem Winter"] = "Wilderness Golem",
+            ["Evil Mummy"] = "Mummy",
+            ["Corrupt Bat"] = "Bat", ["Evil Bat"] = "Bat", ["Dangerous Bat"] = "Bat",
+            ["Skeleton Dangerous"] = "Skeleton", ["Skeleton Mage Dangerous"] = "Skeleton Mage",
+            ["Shadow Brute Dangerous"] = "Shadow Brute", ["Shadow Shaman Dangerous"] = "Shadow Shaman",
+            ["Stone Golem Dangerous"] = "Stone Golem", ["Dangerous Metal Head"] = "Metal Head",
+            ["Dust Spirit Dangerous"] = "Dust Spirit", ["Green Dust Spirit Dangerous"] = "Dust Spirit",
+            ["White Dust Spirit Dangerous"] = "Dust Spirit",
+        };
+
+        // Spawn-condition descriptions shown as an extra info field on the
+        // variant's detail page - only filled in where confirmed from
+        // actual mod source (e.g. RSV's location-conditional reskin);
+        // generic ones note the general pattern without over-claiming
+        // specifics that aren't confirmed.
+        // Combat mechanic / behavior tips for monsters with confirmed
+        // special mechanics from wiki sources - keyed by InternalName
+        // (unlike the variant-only tables above, this applies to any
+        // monster, main-table entry or variant). Lookup Anything's own
+        // GetDataForMonster only shows Health/Drops/Experience/Defense/
+        // Attack - no behavior/strategy info at all, confirmed directly
+        // from its own source code.
+        internal static readonly Dictionary<string, string> MonsterCombatTips = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Copper Crab"] = "Disguises itself as a stationary copper ore node until approached or struck. Hit its shell with a pickaxe first to break its defense before attacking with a weapon.",
+            ["Gold Crab"] = "Disguises itself as a stationary gold ore node until approached or struck. Hit its shell with a pickaxe first to break its (very high) defense before attacking with a weapon.",
+            ["Iron Crab"] = "Disguises itself as a stationary iron ore node until approached or struck. Hit its shell with a pickaxe first to break its defense before attacking with a weapon.",
+            ["Legendary Purple Mushroom Crab"] = "Appears as an ordinary purple mushroom until attacked or hit with a pickaxe - it cannot be picked up like a real mushroom.",
+            ["Royal Badlands Serpent"] = "Has a long segmented body like Royal Serpent, giving it a wide hitbox - any part of its body deals damage on contact and can be damaged when struck.",
+            ["Serperial"] = "Its health scales with body length (3-18 tail segments, +50 HP per segment) - any part of its body deals and takes damage on contact.",
+            ["Viperial"] = "Pauses movement and breathes a continuous flame blast in one direction when attacking; can turn quickly if you circle to its side too fast. Best approached diagonally, then attack from the side it isn't firing from.",
+            ["Wraith"] = "Flies through walls and periodically charges at increased speed. Can inflict a Nauseated debuff (blocks healing from food/drink for 2 minutes) - cure it by eating Ginger or drinking Ginger Ale.",
+            ["Corrupted Spirit"] = "Flies straight at the player ignoring obstacles like rocks, cliffs, and water. Teleports to a random spot after landing a hit, then slowly floats back for another strike.",
+            ["Serpentine Beast"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
+            ["Toxic Bubble"] = "A flying enemy that actively chases the player through the air.",
+        };
+
+        internal static readonly Dictionary<string, string> MonsterVariantSpawnConditions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Corrupt Bat"] = "A recolored appearance of Bat in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
+            ["Evil Bat"] = "A recolored appearance of Bat in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
+            ["Dangerous Bat"] = "A recolored appearance of Bat used in \"Danger in the Deep\" / danger-mode mine runs.",
+            ["Evil Mummy"] = "A recolored appearance of Mummy in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
+            ["Skeleton Dangerous"] = "A recolored appearance of Skeleton used in danger-mode mine runs.",
+            ["Skeleton Mage Dangerous"] = "A recolored appearance of Skeleton Mage used in danger-mode mine runs.",
+            ["Shadow Brute Dangerous"] = "A recolored appearance of Shadow Brute used in danger-mode mine runs.",
+            ["Shadow Shaman Dangerous"] = "A recolored appearance of Shadow Shaman used in danger-mode mine runs.",
+            ["Stone Golem Dangerous"] = "A recolored appearance of Stone Golem used in danger-mode mine runs.",
+            ["Dangerous Metal Head"] = "A recolored appearance of Metal Head used in danger-mode mine runs.",
+            ["Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
+            ["Green Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
+            ["White Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
+        };
+
         private static readonly Dictionary<string, string> CharacterAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Old Mariner"] = "Mariner",
