@@ -681,22 +681,36 @@ namespace LookupAnythingMobileSearch.Framework
                         // was never set up.
                         try
                         {
-                            var directTex = Game1.content.Load<Texture2D>($"Characters\\{npcTarget.Name}");
+                            string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
+                                    ? charOverride : npcTarget.Name;
+                            var directTex = Game1.content.Load<Texture2D>($"Characters\\{characterAssetName}");
                             if (directTex != null)
                             {
-                                // Standard NPC sprite sheets use 16x32
-                                // frames; take the first one.
-                                int fw = Math.Min(16, directTex.Width);
-                                int fh = Math.Min(32, directTex.Height);
-                                var fRect = new Rectangle(0, 0, fw, fh);
+                                Rectangle fRect;
+                                int fw, fh;
+                                if (SpriteCropOverrides.TryGetValue(npcTarget.Name, out Rectangle cropOverride2))
+                                {
+                                    fRect = cropOverride2;
+                                    fw = cropOverride2.Width;
+                                    fh = cropOverride2.Height;
+                                }
+                                else
+                                {
+                                    // Standard NPC sprite sheets use 16x32
+                                    // frames; take the first one.
+                                    fw = Math.Min(16, directTex.Width);
+                                    fh = Math.Min(32, directTex.Height);
+                                    fRect = new Rectangle(0, 0, fw, fh);
+                                }
                                 float fScale = Math.Min(size.X / fw, size.Y / fh);
                                 float fDrawW = fw * fScale;
                                 float fDrawH = fh * fScale;
                                 var fPos = new Vector2(position.X + (size.X - fDrawW) / 2f, position.Y + (size.Y - fDrawH) / 2f);
                                 if (_loggedPortraitIssues.Add("npc-direct-sprite:" + Name))
                                 {
-                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load succeeded for '{Name}' (Sprite was null): "
-                                            + $"texSize={directTex.Width}x{directTex.Height}", LogLevel.Debug);
+                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load succeeded for '{Name}' "
+                                            + $"(internalName='{npcTarget.Name}', Sprite was null): "
+                                            + $"texSize={directTex.Width}x{directTex.Height}, cropRect={fRect}", LogLevel.Debug);
                                 }
                                 b.Draw(directTex, fPos, fRect, Color.White, 0f, Vector2.Zero, fScale, SpriteEffects.None, 1f);
                                 return true;
@@ -706,7 +720,7 @@ namespace LookupAnythingMobileSearch.Framework
                         {
                             if (_loggedPortraitIssues.Add("npc-direct-sprite-fail:" + Name))
                             {
-                                ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load also failed for '{Name}': {directEx.Message}", LogLevel.Debug);
+                                ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load also failed for '{Name}' (internalName='{npcTarget.Name}'): {directEx.Message}", LogLevel.Debug);
                             }
                         }
 
@@ -885,6 +899,18 @@ namespace LookupAnythingMobileSearch.Framework
         private static readonly Dictionary<string, string> PortraitAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Leo"] = "ParrotBoy",
+        };
+
+        // Character (overworld sprite) asset name overrides - confirmed
+        // directly from an uploaded file: "Old Mariner"'s real asset file
+        // is named "Mariner" (no "Old " prefix), same pattern as Leo's
+        // portrait being named "ParrotBoy". The file size (~2123 bytes
+        // decompressed) matches a small 16x32 sprite far better than a
+        // 64x64 portrait, so this override applies to the Characters\
+        // path specifically.
+        private static readonly Dictionary<string, string> CharacterAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Old Mariner"] = "Mariner",
         };
 
         // Characters whose Portrait is known to be unreliable/wrong (e.g.
@@ -1171,6 +1197,51 @@ namespace LookupAnythingMobileSearch.Framework
             if (string.IsNullOrEmpty(s)) return s;
             int i = s.IndexOf('(');
             return i > 0 ? s[..i].Trim() : s.Trim();
+        }
+
+        // Actually assigns the force-loaded/corrected texture onto the
+        // underlying NPC's Portrait property (not just a local variable
+        // used only for our own list-icon drawing) - called right before
+        // handing the subject off to Lookup Anything's own detail page, so
+        // that page's rendering (which we don't control) inspects the
+        // SAME character object and finds a valid Portrait already
+        // populated, rather than whatever null/fake placeholder it had
+        // before.
+        public void PrimeVisualData()
+        {
+            try
+            {
+                if (GetTarget() is not StardewValley.NPC npcTarget) return;
+                if (ForceSpriteOverPortrait.Contains(npcTarget.Name)) return; // no reliable portrait to prime with for these
+
+                if (npcTarget.Portrait == null)
+                {
+                    string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
+                            ? overrideName : npcTarget.Name;
+                    try
+                    {
+                        var loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}");
+                        if (loaded != null) npcTarget.Portrait = loaded;
+                    }
+                    catch { /* no portrait available - leave as-is */ }
+                }
+
+                if (npcTarget.Sprite == null)
+                {
+                    string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
+                            ? charOverride : npcTarget.Name;
+                    try
+                    {
+                        var tex = Game1.content.Load<Texture2D>($"Characters\\{characterAssetName}");
+                        if (tex != null) npcTarget.Sprite = new AnimatedSprite($"Characters\\{characterAssetName}", 0, 16, 32);
+                    }
+                    catch { /* no sprite available - leave as-is */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeVisualData failed for '{Name}': {ex.Message}", LogLevel.Trace);
+            }
         }
 
         public static SubjectWrapper? Create(object? subject)

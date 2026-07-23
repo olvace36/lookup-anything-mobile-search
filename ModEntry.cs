@@ -607,6 +607,12 @@ namespace LookupAnythingMobileSearch
                     // a detail page and expect to bring them back to this
                     // exact menu once they close it.
                     _awaitingDetailReturn = true;
+                    // Prime the underlying character's Portrait/Sprite
+                    // before handing off, so Lookup Anything's own detail
+                    // page (which we don't control) finds valid visual
+                    // data already populated on the same object, instead
+                    // of whatever null/fake placeholder it had.
+                    SubjectWrapper.Create(subject)?.PrimeVisualData();
                     _bridge.ShowLookupFor(subject);
                 }, GetMonsterSubjects, _persistence, onExplicitClose: () =>
                 {
