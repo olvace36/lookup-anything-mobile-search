@@ -1209,10 +1209,13 @@ namespace LookupAnythingMobileSearch.Framework
         // before.
         public void PrimeVisualData()
         {
+            if (GetTarget() is StardewValley.NPC npcTarget) PrimeNpcVisualData(npcTarget);
+        }
+
+        public static void PrimeNpcVisualData(StardewValley.NPC npcTarget)
+        {
             try
             {
-                if (GetTarget() is not StardewValley.NPC npcTarget) return;
-
                 bool portraitIsFake = npcTarget.Portrait != null && npcTarget.Portrait.Height <= 48;
                 bool needsPortraitFix = npcTarget.Portrait == null || portraitIsFake
                         || SpriteCropOverrides.ContainsKey(npcTarget.Name) || ForceSpriteOverPortrait.Contains(npcTarget.Name);
@@ -1274,7 +1277,7 @@ namespace LookupAnythingMobileSearch.Framework
             }
             catch (Exception ex)
             {
-                ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeVisualData failed for '{Name}': {ex.Message}", LogLevel.Trace);
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeVisualData failed for '{npcTarget.Name}': {ex.Message}", LogLevel.Trace);
             }
         }
 
@@ -1289,8 +1292,25 @@ namespace LookupAnythingMobileSearch.Framework
         {
             var data = new Color[region.Width * region.Height];
             source.GetData(0, region, data, 0, data.Length);
-            var cropped = new Texture2D(source.GraphicsDevice, region.Width, region.Height);
-            cropped.SetData(data);
+
+            // A real portrait fills the whole 64x64 frame, so scale the
+            // small cropped sprite frame UP to fill that space too
+            // (nearest-neighbor, to keep the pixel-art look crisp rather
+            // than blurry) instead of pasting it at its tiny natural size
+            // into one corner of an otherwise-empty canvas.
+            const int canvasSize = 64;
+            var canvasData = new Color[canvasSize * canvasSize];
+            for (int y = 0; y < canvasSize; y++)
+            {
+                int srcY = Math.Min(region.Height - 1, y * region.Height / canvasSize);
+                for (int x = 0; x < canvasSize; x++)
+                {
+                    int srcX = Math.Min(region.Width - 1, x * region.Width / canvasSize);
+                    canvasData[y * canvasSize + x] = data[srcY * region.Width + srcX];
+                }
+            }
+            var cropped = new Texture2D(source.GraphicsDevice, canvasSize, canvasSize);
+            cropped.SetData(canvasData);
             return cropped;
         }
 
