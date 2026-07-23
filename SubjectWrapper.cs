@@ -501,7 +501,7 @@ namespace LookupAnythingMobileSearch.Framework
 
         // internal name itself has no prefix at all (Sword & Sorcery's
         // "Stygium ..." family, for example).
-        private static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
+        internal static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Stygium Bat"] = "Sword & Sorcery", ["Stygium Crab"] = "Sword & Sorcery",
             ["Stygium Golem"] = "Sword & Sorcery", ["Stygium Golem (Blue)"] = "Sword & Sorcery",
