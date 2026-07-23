@@ -351,9 +351,13 @@ namespace LookupAnythingMobileSearch.Framework
             ["Cirrus"] = "Sword & Sorcery", ["Roslin"] = "Sword & Sorcery",
             ["Solomon"] = "Sword & Sorcery", ["Dandelion"] = "Sword & Sorcery",
             ["Silly"] = "Adventurer's Guild Expanded", ["Gabriel"] = "Adventurer's Guild Expanded",
-            ["Zinnia"] = "Adventurer's Guild Expanded", ["JaviGiex"] = "GI Extra Locations",
+            ["Zinnia"] = "Adventurer's Guild Expanded", ["Daisy"] = "Adventurer's Guild Expanded",
+            ["Daniel"] = "Adventurer's Guild Expanded", ["JaviGiex"] = "GI Extra Locations",
             ["SenS"] = "Lurking in the Dark", ["Nora"] = "Nora the Herpetologist",
-            ["Nova.Eli"] = "Eli and Dylan", ["Nova.Dylan"] = "Eli and Dylan", ["Soot"] = "Eli and Dylan",
+            ["Nova.Eli"] = "Eli and Dylan", ["Nova.Dylan"] = "Eli and Dylan",
+            // Real internal name confirmed from log: "SootInside" (Custom
+            // Companions names the companion instance this, not "Soot")
+            ["Soot"] = "Eli and Dylan", ["SootInside"] = "Eli and Dylan", ["SootOutside"] = "Eli and Dylan",
 
             // East Scarp - verified from Data/Characters entry keys
             ["Eyvinder"] = "East Scarp", ["Eloise"] = "East Scarp", ["Jacob"] = "East Scarp",
@@ -530,8 +534,15 @@ namespace LookupAnythingMobileSearch.Framework
                             // for recently (confirmed via log: several
                             // vanilla NPCs like Leo had a real NPC target
                             // but a null Portrait). Try loading it
-                            // directly from the standard content path.
-                            try { tex = Game1.content.Load<Texture2D>($"Portraits\\{npcTarget.Name}"); }
+                            // directly from the standard content path,
+                            // unless a known override applies (some
+                            // characters' portrait asset name doesn't
+                            // match their in-game Name - e.g. Leo's
+                            // portrait file is "ParrotBoy", confirmed
+                            // directly by the user).
+                            string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
+                                    ? overrideName : npcTarget.Name;
+                            try { tex = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}"); }
                             catch (Exception loadEx)
                             {
                                 if (_loggedPortraitIssues.Add("npc-portrait-load:" + Name))
@@ -552,6 +563,14 @@ namespace LookupAnythingMobileSearch.Framework
                             float drawW = cellW * scale;
                             float drawH = cellH * scale;
                             var pos = new Vector2(position.X + (size.X - drawW) / 2f, position.Y + (size.Y - drawH) / 2f);
+                            if (_loggedPortraitIssues.Add("npc-draw-detail:" + Name))
+                            {
+                                ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC portrait draw detail for '{Name}': "
+                                        + $"texSize={tex.Width}x{tex.Height}, isDisposed={tex.IsDisposed}, "
+                                        + $"cellSize={cellW}x{cellH}, requestedSize={size.X}x{size.Y}, scale={scale}, "
+                                        + $"drawSize={drawW}x{drawH}, drawPos={pos.X},{pos.Y}, "
+                                        + $"iconPosition={position.X},{position.Y}", LogLevel.Debug);
+                            }
                             b.Draw(tex, pos, srcRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
                             return true;
                         }
@@ -739,6 +758,13 @@ namespace LookupAnythingMobileSearch.Framework
             return false;
         }
         private static readonly HashSet<string> _loggedPortraitIssues = new();
+
+        // Some characters' portrait file name doesn't match their in-game
+        // Name - confirmed cases only, not guessed.
+        private static readonly Dictionary<string, string> PortraitAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Leo"] = "ParrotBoy",
+        };
         private static readonly HashSet<string> _loggedModGroupTrace = new();
 
         public string GetCategory()
