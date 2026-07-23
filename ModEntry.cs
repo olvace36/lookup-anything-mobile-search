@@ -321,7 +321,7 @@ namespace LookupAnythingMobileSearch
                     return;
                 }
 
-                var harmony = new Harmony(ModManifest.UniqueID);
+                var harmony = new Harmony("olvace36.LookupAnythingMobileSearch");
                 harmony.Patch(getData, postfix: new HarmonyMethod(typeof(ModEntry), nameof(GetData_VariantInfoPostfix)));
             }
             catch (Exception ex)
