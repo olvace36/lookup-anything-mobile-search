@@ -1212,6 +1212,25 @@ namespace LookupAnythingMobileSearch.Framework
             if (GetTarget() is StardewValley.NPC npcTarget) PrimeNpcVisualData(npcTarget);
         }
 
+        // Names known to need visual priming for their detail-page clone -
+        // either from the explicit override tables, or the SVE
+        // Adventurer's Guild Guests (confirmed fake Portrait by SVE's own
+        // source comments) who don't have individual crop/asset overrides
+        // but still need their sprite substituted for their fake portrait.
+        private static readonly HashSet<string> KnownSveGuestNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Freya", "Gertrude", "Cordelia", "Cassandra", "Sawyer", "Drake",
+            "Treyvon", "Brock", "Brianna", "Emin", "Hank", "HankSVE", "Charlie", "Gale", "Edmund",
+        };
+
+        public static bool NeedsVisualPriming(string internalName)
+        {
+            return SpriteCropOverrides.ContainsKey(internalName)
+                    || ForceSpriteOverPortrait.Contains(internalName)
+                    || CharacterAssetNameOverrides.ContainsKey(internalName)
+                    || KnownSveGuestNames.Contains(internalName);
+        }
+
         public static void PrimeNpcVisualData(StardewValley.NPC npcTarget)
         {
             try

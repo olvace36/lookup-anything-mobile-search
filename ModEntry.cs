@@ -607,13 +607,33 @@ namespace LookupAnythingMobileSearch
                     // a detail page and expect to bring them back to this
                     // exact menu once they close it.
                     _awaitingDetailReturn = true;
-                    // Prime the underlying character's Portrait/Sprite
-                    // before handing off, so Lookup Anything's own detail
-                    // page (which we don't control) finds valid visual
-                    // data already populated on the same object, instead
-                    // of whatever null/fake placeholder it had.
-                    SubjectWrapper.Create(subject)?.PrimeVisualData();
-                    _bridge.ShowLookupFor(subject);
+                    // Instead of mutating the shared NPC (which caused
+                    // list-icon regressions since it's the same object our
+                    // list reads from), construct a throwaway CLONE
+                    // specifically for names known to need visual fixing,
+                    // prime that clone (safe - nothing else references
+                    // it), and show it instead. The real shared NPC our
+                    // list uses stays completely untouched.
+                    object? subjectToShow = subject;
+                    var wrapped = SubjectWrapper.Create(subject);
+                    if (wrapped != null && SubjectWrapper.NeedsVisualPriming(wrapped.InternalName))
+                    {
+                        try
+                        {
+                            NPC? clone = TryConstructNpcDynamically(wrapped.InternalName);
+                            if (clone != null)
+                            {
+                                SubjectWrapper.PrimeNpcVisualData(clone);
+                                object? cloneSubject = _bridge!.GetSubjectFor(clone);
+                                if (cloneSubject != null) subjectToShow = cloneSubject;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Monitor.Log($"Couldn't build a primed clone for detail view of '{wrapped.InternalName}': {ex.Message}", LogLevel.Trace);
+                        }
+                    }
+                    _bridge.ShowLookupFor(subjectToShow!);
                 }, GetMonsterSubjects, _persistence, onExplicitClose: () =>
                 {
                     // The player closed the search menu itself (its own X
