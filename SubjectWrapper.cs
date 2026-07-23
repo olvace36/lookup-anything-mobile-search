@@ -398,7 +398,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Cassandra"] = "Stardew Valley Expanded", ["Sawyer"] = "Stardew Valley Expanded",
             ["Drake"] = "Stardew Valley Expanded", ["Brock"] = "Stardew Valley Expanded",
             ["Brianna"] = "Stardew Valley Expanded", ["Emin"] = "Stardew Valley Expanded",
-            ["Treyvon"] = "Stardew Valley Expanded", ["Hank"] = "Stardew Valley Expanded",
+            ["Treyvon"] = "Stardew Valley Expanded", ["Hank"] = "Stardew Valley Expanded", ["HankSVE"] = "Stardew Valley Expanded",
             ["Charlie"] = "Stardew Valley Expanded",
             ["Gale"] = "Stardew Valley Expanded", ["Edmund"] = "Stardew Valley Expanded",
 
@@ -550,14 +550,67 @@ namespace LookupAnythingMobileSearch.Framework
                                     ModEntry.SMonitor?.Log($"[SubjectWrapper] Couldn't force-load portrait for NPC '{Name}': {loadEx.Message}", LogLevel.Debug);
                                 }
                             }
+                            // Best-effort extra attempts for characters
+                            // whose real sprite lives in a mod-specific
+                            // subfolder rather than the standard
+                            // Portraits\ location - e.g. SVE's
+                            // "Adventurer's Guild Guest" characters, whose
+                            // art the user pointed out lives under
+                            // assets/CharacterFiles/OverworldSprites/Adventurers/.
+                            // These candidate paths are unverified guesses
+                            // at how Content Patcher exposes that folder
+                            // as an asset key; logged either way so we can
+                            // confirm or rule them out from real evidence.
+                            if (tex == null)
+                            {
+                                string[] extraCandidates =
+                                {
+                                    $"Mods\\FlashShifter.StardewValleyExpanded\\CharacterFiles\\OverworldSprites\\Adventurers\\{portraitAssetName}",
+                                    $"Mods\\FlashShifter.StardewValleyExpanded\\Adventurers\\{portraitAssetName}",
+                                };
+                                foreach (string candidate in extraCandidates)
+                                {
+                                    try { tex = Game1.content.Load<Texture2D>(candidate); if (tex != null) break; }
+                                    catch { }
+                                }
+                                if (_loggedPortraitIssues.Add("npc-extra-path:" + Name))
+                                {
+                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Extra path attempts for '{Name}': "
+                                            + (tex != null ? "one of them worked" : "none worked"), LogLevel.Debug);
+                                }
+                            }
                         }
-                        if (tex != null)
+                        // Confirmed directly from SVE's own mod source: for
+                        // "Adventurer's Guild Guest" characters, the
+                        // Portraits/{name} asset is explicitly a "(fake)"
+                        // blank placeholder image the mod loads on
+                        // purpose - a small (16x32, sprite-sized) file
+                        // meant to satisfy the game's requirement for
+                        // *some* portrait texture to exist, not to
+                        // actually be shown. Detecting that size and
+                        // skipping straight to the real overworld sprite
+                        // (which DOES load normally at the standard
+                        // Characters/{name} path - no special path
+                        // needed) avoids ever trying to draw the
+                        // known-blank placeholder.
+                        if (tex != null && tex.Height > 48)
                         {
-                            // Standard portrait sheets are laid out in 64x64
-                            // headshot cells; the first (top-left) cell is the
-                            // neutral/default expression.
-                            int cellW = Math.Min(64, tex.Width);
-                            int cellH = Math.Min(64, tex.Height);
+                            // Some characters' "Portrait" field actually
+                            // points to their overworld sprite texture
+                            // instead of a real portrait sheet - confirmed
+                            // directly from a log trace showing
+                            // texSize=16x32 (a standard sprite frame size)
+                            // for several SVE "guest" characters, instead
+                            // of the usual ~64x64 portrait sheet. Cropping
+                            // that as if it were a 64x64 portrait cell
+                            // still produced in-bounds numbers but the
+                            // wrong pixels for these characters, so detect
+                            // this case and use sprite-style single-frame
+                            // math instead: use the whole texture rather
+                            // than assuming it's a bigger multi-cell sheet.
+                            bool looksLikeSprite = tex.Height <= 48;
+                            int cellW = looksLikeSprite ? tex.Width : Math.Min(64, tex.Width);
+                            int cellH = looksLikeSprite ? tex.Height : Math.Min(64, tex.Height);
                             var srcRect = new Rectangle(0, 0, cellW, cellH);
                             float scale = Math.Min(size.X / cellW, size.Y / cellH);
                             float drawW = cellW * scale;
@@ -566,7 +619,7 @@ namespace LookupAnythingMobileSearch.Framework
                             if (_loggedPortraitIssues.Add("npc-draw-detail:" + Name))
                             {
                                 ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC portrait draw detail for '{Name}': "
-                                        + $"texSize={tex.Width}x{tex.Height}, isDisposed={tex.IsDisposed}, "
+                                        + $"texSize={tex.Width}x{tex.Height}, isDisposed={tex.IsDisposed}, looksLikeSprite={looksLikeSprite}, "
                                         + $"cellSize={cellW}x{cellH}, requestedSize={size.X}x{size.Y}, scale={scale}, "
                                         + $"drawSize={drawW}x{drawH}, drawPos={pos.X},{pos.Y}, "
                                         + $"iconPosition={position.X},{position.Y}", LogLevel.Debug);
@@ -592,8 +645,19 @@ namespace LookupAnythingMobileSearch.Framework
                             float drawW2 = frameW * scale2;
                             float drawH2 = frameH * scale2;
                             var pos2 = new Vector2(position.X + (size.X - drawW2) / 2f, position.Y + (size.Y - drawH2) / 2f);
+                            if (_loggedPortraitIssues.Add("npc-sprite-fallback:" + Name))
+                            {
+                                ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC sprite fallback used for '{Name}': "
+                                        + $"texSize={sprite.Texture.Width}x{sprite.Texture.Height}, frameSize={frameW}x{frameH}", LogLevel.Debug);
+                            }
                             b.Draw(sprite.Texture, pos2, srcRect2, Color.White, 0f, Vector2.Zero, scale2, SpriteEffects.None, 1f);
                             return true;
+                        }
+                        if (_loggedPortraitIssues.Add("npc-no-visual:" + Name))
+                        {
+                            ModEntry.SMonitor?.Log($"[SubjectWrapper] '{Name}' has neither a usable Portrait nor a Sprite texture - "
+                                    + $"spriteIsNull={npcTarget.Sprite == null}, spriteTextureIsNull={npcTarget.Sprite?.Texture == null}. "
+                                    + "No visual can be shown for this NPC.", LogLevel.Debug);
                         }
                     }
                 }

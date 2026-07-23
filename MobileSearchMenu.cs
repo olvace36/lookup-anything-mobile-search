@@ -1069,16 +1069,22 @@ namespace LookupAnythingMobileSearch.UI
 
         private static void DrawSubCategoryArrow(SpriteBatch b, Rectangle bounds, bool left, bool enabled)
         {
-            if (!enabled) return;
-            var color = new Color(122, 74, 43);
-            int cx = bounds.X + bounds.Width / 2;
+            // Redesigned to match the vertical scroll arrows' style
+            // (DrawArrowButton below) - a filled background box behind a
+            // bigger, more visible triangle, instead of the previous bare
+            // dotted triangle with no background at all.
+            var bg = enabled ? new Color(216, 189, 142) : new Color(180, 170, 155) * 0.5f;
+            b.Draw(Game1.staminaRect, bounds, bg);
+            var fg = enabled ? new Color(74, 47, 20) : Color.Gray;
+            int h = bounds.Height / 2;
             int cy = bounds.Y + bounds.Height / 2;
-            int size = 5;
-            for (int i = 0; i < size; i++)
+            int leftX = bounds.X + bounds.Width / 4;
+            int cols = bounds.Width / 3;
+            for (int i = 0; i < cols; i++)
             {
-                int xOff = left ? size - i : i;
-                b.Draw(Game1.staminaRect, new Rectangle(cx - size / 2 + xOff, cy - size + i, 2, 2), color);
-                b.Draw(Game1.staminaRect, new Rectangle(cx - size / 2 + xOff, cy + size - i, 2, 2), color);
+                int colH = h - i * (h / Math.Max(cols, 1));
+                int x = left ? leftX + i * 2 : bounds.Right - bounds.Width / 4 - i * 2;
+                b.Draw(Game1.staminaRect, new Rectangle(x, cy - colH / 2, 2, Math.Max(colH, 2)), fg);
             }
         }
 
