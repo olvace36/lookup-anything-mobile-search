@@ -1214,19 +1214,28 @@ namespace LookupAnythingMobileSearch.Framework
                 if (GetTarget() is not StardewValley.NPC npcTarget) return;
                 if (ForceSpriteOverPortrait.Contains(npcTarget.Name)) return; // no reliable portrait to prime with for these
 
-                if (npcTarget.Portrait == null)
+                bool portraitIsFake = npcTarget.Portrait != null && npcTarget.Portrait.Height <= 48;
+                if (npcTarget.Portrait == null || portraitIsFake)
                 {
                     string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
                             ? overrideName : npcTarget.Name;
-                    try
+                    Texture2D? loaded = null;
+                    try { loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}"); }
+                    catch { /* no real portrait at the standard path */ }
+
+                    // Still nothing usable (or still fake-sized) - reuse
+                    // the real overworld sprite texture we already know
+                    // works fine in our own list icon, so Lookup
+                    // Anything's detail page has something real to show
+                    // instead of the blank placeholder.
+                    if ((loaded == null || loaded.Height <= 48) && npcTarget.Sprite?.Texture != null)
                     {
-                        var loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}");
-                        if (loaded != null) npcTarget.Portrait = loaded;
+                        loaded = npcTarget.Sprite.Texture;
                     }
-                    catch { /* no portrait available - leave as-is */ }
+                    if (loaded != null) npcTarget.Portrait = loaded;
                 }
 
-                if (npcTarget.Sprite == null)
+                if (npcTarget.Sprite == null && !SpriteCropOverrides.ContainsKey(npcTarget.Name))
                 {
                     string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
                             ? charOverride : npcTarget.Name;
