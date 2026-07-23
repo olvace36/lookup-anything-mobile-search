@@ -425,24 +425,26 @@ namespace LookupAnythingMobileSearch.Framework
             ["Stygium Skull"] = "Sword & Sorcery", ["Stygium Squid"] = "Sword & Sorcery",
             ["Stygium False Mushroom"] = "Sword & Sorcery", ["Duskspire Remnant"] = "Sword & Sorcery",
             ["Duskspire Behemoth"] = "Sword & Sorcery",
-            // SVE monster names below are best-effort (spacing guessed
-            // from common naming convention) - confirmed to exist as
-            // real SVE monster sprites, but the exact in-game ID spacing
-            // wasn't verifiable from the files available, so some of
-            // these may not match until confirmed with real evidence.
+            // Stardew Valley Expanded - confirmed from the official wiki
+            // (SVE adds only 6-8 new monster species total; several names
+            // guessed earlier from sprite filenames alone turned out to
+            // be variant/danger-mode reskins, not separate new species).
             ["Apophis"] = "Stardew Valley Expanded", ["Badlands Serpent"] = "Stardew Valley Expanded",
-            ["Bully Rex"] = "Stardew Valley Expanded", ["Copper Crab"] = "Stardew Valley Expanded",
-            ["Corrupt Bat"] = "Stardew Valley Expanded", ["Corrupt Mummy"] = "Stardew Valley Expanded",
-            ["Corrupt Serpent"] = "Stardew Valley Expanded", ["Corrupt Spirit"] = "Stardew Valley Expanded",
-            ["Dangerous Bat"] = "Stardew Valley Expanded", ["Dangerous Metal Head"] = "Stardew Valley Expanded",
-            ["Evil Bat"] = "Stardew Valley Expanded", ["Evil Mummy"] = "Stardew Valley Expanded",
-            ["Gold Crab"] = "Stardew Valley Expanded", ["Iron Crab"] = "Stardew Valley Expanded",
-            ["Poltergeist"] = "Stardew Valley Expanded", ["Royal Badlands Serpent"] = "Stardew Valley Expanded",
-            ["Sand Scorpion"] = "Stardew Valley Expanded", ["Swamp Golem"] = "Stardew Valley Expanded",
-            ["Swamp Lurk"] = "Stardew Valley Expanded", ["Toxic Bubble"] = "Stardew Valley Expanded",
+            ["Corrupt Mummy"] = "Stardew Valley Expanded", ["Corrupt Serpent"] = "Stardew Valley Expanded",
+            ["Fallen Adventurer"] = "Stardew Valley Expanded",
+            ["Highlands Golem"] = "Stardew Valley Expanded", ["Highlands Sprite"] = "Stardew Valley Expanded",
             // Ridgeside Village - confirmed from the official wiki's monster list
-            ["Serpentine Beast"] = "Ridgeside Village", ["Corrupt Spirit"] = "Ridgeside Village",
+            ["Serpentine Beast"] = "Ridgeside Village",
             ["Serperial"] = "Ridgeside Village", ["Viperial"] = "Ridgeside Village", ["Wraith"] = "Ridgeside Village",
+            // "Corrupt Spirit" exists as a distinct monster in BOTH SVE
+            // and Ridgeside Village (confirmed on both official wikis) -
+            // a genuine name collision between two unrelated mods. Only
+            // one can be listed here; kept under Ridgeside Village since
+            // that's the more specific/recent source checked. If both
+            // mods are installed together this label may be wrong for
+            // one of them - there's no way to disambiguate from the name
+            // alone.
+            ["Corrupt Spirit"] = "Ridgeside Village",
         };
 
         public string ModGroupLabel()
@@ -478,6 +480,46 @@ namespace LookupAnythingMobileSearch.Framework
 
         public bool DrawPortrait(SpriteBatch b, Vector2 position, Vector2 size)
         {
+            // For NPCs: also try OUR OWN drawing first, same reasoning as
+            // monsters below. Lookup Anything's own DrawPortrait succeeds
+            // without throwing for these (confirmed - no error logged)
+            // but renders nothing visible, which strongly suggests it
+            // deliberately withholds the portrait for an NPC the player
+            // hasn't met yet (a sensible spoiler-prevention default for
+            // its normal use case). That's exactly backwards for what we
+            // built this for - showing an NPC's unlock condition BEFORE
+            // meeting them - so bypass that behavior entirely and draw
+            // straight from the character's own Portrait texture.
+            if (!_isMonster && GetCategory() == "NPCs")
+            {
+                try
+                {
+                    if (GetTarget() is StardewValley.NPC npcTarget && npcTarget.Portrait != null)
+                    {
+                        var tex = npcTarget.Portrait;
+                        // Standard portrait sheets are laid out in 64x64
+                        // headshot cells; the first (top-left) cell is the
+                        // neutral/default expression.
+                        int cellW = Math.Min(64, tex.Width);
+                        int cellH = Math.Min(64, tex.Height);
+                        var srcRect = new Rectangle(0, 0, cellW, cellH);
+                        float scale = Math.Min(size.X / cellW, size.Y / cellH);
+                        float drawW = cellW * scale;
+                        float drawH = cellH * scale;
+                        var pos = new Vector2(position.X + (size.X - drawW) / 2f, position.Y + (size.Y - drawH) / 2f);
+                        b.Draw(tex, pos, srcRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (_loggedPortraitIssues.Add("npc-draw:" + Name))
+                    {
+                        ModEntry.SMonitor?.Log($"[SubjectWrapper] Custom NPC portrait drawing threw for '{Name}': {ex.Message}", LogLevel.Debug);
+                    }
+                }
+            }
+
             // For monsters: try OUR OWN drawing FIRST, not Lookup
             // Anything's. Confirmed directly by the user: Lookup
             // Anything's own detail page has the SAME overflow/bleed bug
@@ -540,11 +582,52 @@ namespace LookupAnythingMobileSearch.Framework
                         var centeredPos = new Vector2(
                                 position.X + (size.X - drawWidth) / 2f,
                                 position.Y + (size.Y - drawHeight) / 2f);
-                        b.Draw(sprite.Texture, centeredPos, sourceRect, tint, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-                        return true;
+                        if (sprite.Texture == null)
+                        {
+                            // The sprite's texture isn't loaded into memory
+                            // yet - this can happen for hidden/waiting-room
+                            // NPCs and freshly-constructed monster previews
+                            // that the game never had a normal reason to
+                            // render before now. Try loading it directly.
+                            try
+                            {
+                                var texField = sprite.GetType().GetField("textureName",
+                                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                                        ?? sprite.GetType().GetField("_textureName",
+                                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                string? texName = texField?.GetValue(sprite) as string;
+                                if (!string.IsNullOrEmpty(texName))
+                                    sprite.Texture = Game1.content.Load<Texture2D>(texName);
+                            }
+                            catch (Exception loadEx)
+                            {
+                                if (_loggedPortraitIssues.Add("texture-load:" + Name))
+                                {
+                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Couldn't force-load sprite texture for '{Name}': {loadEx.Message}", LogLevel.Debug);
+                                }
+                            }
+                        }
+                        if (sprite.Texture == null)
+                        {
+                            if (_loggedPortraitIssues.Add("null-texture:" + Name))
+                            {
+                                ModEntry.SMonitor?.Log($"[SubjectWrapper] Sprite texture is still null for '{Name}' after attempting to load it - portrait will be blank.", LogLevel.Debug);
+                            }
+                        }
+                        else
+                        {
+                            b.Draw(sprite.Texture, centeredPos, sourceRect, tint, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                            return true;
+                        }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    if (_loggedPortraitIssues.Add("custom-draw:" + Name))
+                    {
+                        ModEntry.SMonitor?.Log($"[SubjectWrapper] Custom monster portrait drawing threw for '{Name}': {ex.Message}", LogLevel.Debug);
+                    }
+                }
             }
 
             // Fallback: Lookup Anything's own DrawPortrait. This is the

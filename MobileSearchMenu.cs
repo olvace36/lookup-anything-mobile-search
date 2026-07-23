@@ -19,7 +19,7 @@ namespace LookupAnythingMobileSearch.UI
         private const int SEARCH_BOX_HEIGHT = 52;
         private const int SORT_BUTTON_WIDTH = 84;
         private const int CATEGORY_HEIGHT = 44;
-        private const int SUBCATEGORY_HEIGHT = 30;
+        private const int SUBCATEGORY_HEIGHT = 36;
         private const int ITEM_HEIGHT = 80;
         private const int GROUP_HEADER_HEIGHT = 28;
         private const int SCROLLBAR_WIDTH = 12;
@@ -309,7 +309,7 @@ namespace LookupAnythingMobileSearch.UI
             const int tabGap = 4;
             foreach (var sub in list)
             {
-                var textSize = Game1.tinyFont.MeasureString(TL(sub));
+                var textSize = Game1.smallFont.MeasureString(TL(sub));
                 int btnW = (int)textSize.X + tabPaddingX * 2;
                 _subCategories.Add(new CategoryButton
                 {
@@ -1046,10 +1046,10 @@ namespace LookupAnythingMobileSearch.UI
                 b.Draw(Game1.staminaRect, new Rectangle(screenX - 2, btn.Bounds.Y + 4, 1, btn.Bounds.Height - 8), new Color(168, 130, 88) * 0.5f);
 
                 var textColor = btn.IsSelected ? new Color(74, 47, 20) : new Color(140, 110, 80);
-                string label = Truncate(TL(btn.Category), Game1.tinyFont, btn.Bounds.Width - 6);
-                var sz = Game1.tinyFont.MeasureString(label);
+                string label = Truncate(TL(btn.Category), Game1.smallFont, btn.Bounds.Width - 6);
+                var sz = Game1.smallFont.MeasureString(label);
                 var pos = new Vector2(screenX + (btn.Bounds.Width - sz.X) / 2f, btn.Bounds.Y + 2);
-                Utility.drawTextWithShadow(b, label, Game1.tinyFont, pos, textColor);
+                Utility.drawTextWithShadow(b, label, Game1.smallFont, pos, textColor);
                 if (btn.IsSelected)
                     b.Draw(Game1.staminaRect, new Rectangle(screenX, btn.Bounds.Bottom - 3, btn.Bounds.Width, 3), new Color(122, 74, 43));
             }
@@ -1118,10 +1118,10 @@ namespace LookupAnythingMobileSearch.UI
             var clip = Rectangle.Intersect(bounds, _resultsArea);
             if (clip.Width <= 0 || clip.Height <= 0) return;
             b.Draw(Game1.staminaRect, new Rectangle(bounds.X, bounds.Y + bounds.Height / 2, bounds.Width, 1), new Color(199, 168, 120) * 0.6f);
-            var sz = Game1.tinyFont.MeasureString(hr.Text);
+            var sz = Game1.smallFont.MeasureString(hr.Text);
             var pos = new Vector2(bounds.X + (bounds.Width - sz.X) / 2f, bounds.Y + (bounds.Height - sz.Y) / 2f);
             b.Draw(Game1.staminaRect, new Rectangle((int)pos.X - 6, bounds.Y, (int)sz.X + 12, bounds.Height), new Color(244, 226, 184));
-            Utility.drawTextWithShadow(b, hr.Text, Game1.tinyFont, pos, new Color(138, 106, 69));
+            Utility.drawTextWithShadow(b, hr.Text, Game1.smallFont, pos, new Color(138, 106, 69));
         }
 
         private static Color CategoryStripe(string cat) => cat switch
@@ -1264,10 +1264,10 @@ namespace LookupAnythingMobileSearch.UI
 
         private static void DrawTag(SpriteBatch b, string text, float x, float y, Color bg, Color fg)
         {
-            var sz = Game1.tinyFont.MeasureString(text);
+            var sz = Game1.smallFont.MeasureString(text) * 0.6f;
             var rect = new Rectangle((int)x, (int)y, (int)sz.X + 10, (int)sz.Y + 4);
             b.Draw(Game1.staminaRect, rect, bg);
-            b.DrawString(Game1.tinyFont, text, new Vector2(x + 5, y + 2), fg);
+            b.DrawString(Game1.smallFont, text, new Vector2(x + 5, y + 2), fg, 0f, Vector2.Zero, 0.6f, SpriteEffects.None, 1f);
         }
 
         private void DrawHighlighted(SpriteBatch b, string name, int x, int y, Color baseColor)
