@@ -1212,25 +1212,50 @@ namespace LookupAnythingMobileSearch.Framework
             try
             {
                 if (GetTarget() is not StardewValley.NPC npcTarget) return;
-                if (ForceSpriteOverPortrait.Contains(npcTarget.Name)) return; // no reliable portrait to prime with for these
 
                 bool portraitIsFake = npcTarget.Portrait != null && npcTarget.Portrait.Height <= 48;
-                if (npcTarget.Portrait == null || portraitIsFake)
-                {
-                    string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
-                            ? overrideName : npcTarget.Name;
-                    Texture2D? loaded = null;
-                    try { loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}"); }
-                    catch { /* no real portrait at the standard path */ }
+                bool needsPortraitFix = npcTarget.Portrait == null || portraitIsFake
+                        || SpriteCropOverrides.ContainsKey(npcTarget.Name) || ForceSpriteOverPortrait.Contains(npcTarget.Name);
 
-                    // Still nothing usable (or still fake-sized) - reuse
-                    // the real overworld sprite texture we already know
-                    // works fine in our own list icon, so Lookup
-                    // Anything's detail page has something real to show
-                    // instead of the blank placeholder.
-                    if ((loaded == null || loaded.Height <= 48) && npcTarget.Sprite?.Texture != null)
+                if (needsPortraitFix)
+                {
+                    Texture2D? loaded = null;
+                    if (!ForceSpriteOverPortrait.Contains(npcTarget.Name) && !SpriteCropOverrides.ContainsKey(npcTarget.Name))
                     {
-                        loaded = npcTarget.Sprite.Texture;
+                        string portraitAssetName = PortraitAssetNameOverrides.TryGetValue(npcTarget.Name, out string? overrideName)
+                                ? overrideName : npcTarget.Name;
+                        try { loaded = Game1.content.Load<Texture2D>($"Portraits\\{portraitAssetName}"); }
+                        catch { /* no real portrait at the standard path */ }
+                        if (loaded != null && loaded.Height <= 48) loaded = null; // still fake-sized, don't use it
+                    }
+
+                    if (loaded == null)
+                    {
+                        // Fall back to cropping a single frame out of the
+                        // real overworld sprite - either using this
+                        // character's specific crop coordinates (e.g.
+                        // JunimoJade's x17,y0,16x16), or the sprite's
+                        // default first frame otherwise. Cropping into a
+                        // NEW small texture (rather than just reusing the
+                        // full multi-frame sheet reference) is essential -
+                        // confirmed directly that reusing the whole sheet
+                        // made Lookup Anything's detail page draw every
+                        // frame stacked together instead of just one.
+                        Texture2D? sourceTex = npcTarget.Sprite?.Texture;
+                        if (sourceTex == null)
+                        {
+                            string characterAssetName = CharacterAssetNameOverrides.TryGetValue(npcTarget.Name, out string? charOverride)
+                                    ? charOverride : npcTarget.Name;
+                            try { sourceTex = Game1.content.Load<Texture2D>($"Characters\\{characterAssetName}"); }
+                            catch { /* no sprite available either */ }
+                        }
+                        if (sourceTex != null)
+                        {
+                            Rectangle crop = SpriteCropOverrides.TryGetValue(npcTarget.Name, out Rectangle cropOverride)
+                                    ? cropOverride
+                                    : new Rectangle(0, 0, Math.Min(16, sourceTex.Width), Math.Min(32, sourceTex.Height));
+                            loaded = CropTexture(sourceTex, crop);
+                        }
                     }
                     if (loaded != null) npcTarget.Portrait = loaded;
                 }
@@ -1251,6 +1276,22 @@ namespace LookupAnythingMobileSearch.Framework
             {
                 ModEntry.SMonitor?.Log($"[SubjectWrapper] PrimeVisualData failed for '{Name}': {ex.Message}", LogLevel.Trace);
             }
+        }
+
+        // Extracts just the given pixel region out of a larger texture
+        // into a brand new, correctly-sized Texture2D - needed because
+        // Lookup Anything's own portrait rendering draws the WHOLE
+        // texture it's given with no cropping of its own, so substituting
+        // a full multi-frame sprite sheet (even with a valid crop
+        // rectangle recorded elsewhere) showed every frame stacked
+        // together instead of just the one relevant frame.
+        private static Texture2D CropTexture(Texture2D source, Rectangle region)
+        {
+            var data = new Color[region.Width * region.Height];
+            source.GetData(0, region, data, 0, data.Length);
+            var cropped = new Texture2D(source.GraphicsDevice, region.Width, region.Height);
+            cropped.SetData(data);
+            return cropped;
         }
 
         public static SubjectWrapper? Create(object? subject)
