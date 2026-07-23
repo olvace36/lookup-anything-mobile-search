@@ -375,10 +375,17 @@ namespace LookupAnythingMobileSearch
             var result = new List<object>();
             List<string>? names = _bridge?.GetMonsterNames();
             if (names == null) {
-                _monsterSubjectsCache = result;
-                return result;
+                names = new List<string>();
             }
-            foreach (string name in names.Distinct())
+            // Merge in monster names we've confirmed exist through actual
+            // research (wiki data, mod source files) even if they aren't
+            // discoverable through Data/Monsters - confirmed some mods
+            // (e.g. SVE's "new species" like Apophis) implement their
+            // monsters via custom code rather than registering them in
+            // Data/Monsters at all, so GetMonsterNames() (which reads
+            // Data/Monsters) never sees them.
+            names = names.Concat(SubjectWrapper.MonsterNameToModName.Keys).Distinct().ToList();
+            foreach (string name in names)
             {
                 try
                 {

@@ -931,7 +931,13 @@ namespace LookupAnythingMobileSearch.UI
                         new RasterizerState { ScissorTestEnable = true });
             }
 
-            b.Draw(Game1.staminaRect, _resultsArea, new Color(60, 45, 30) * 0.15f);
+            // TEMPORARY DIAGNOSTIC: solid bright background instead of the
+            // normal faint one, so the actual box boundary is clearly
+            // visible - to check whether content really draws outside
+            // this rectangle, or if the boundary was just too faint to
+            // see clearly before. Revert to the normal faint fill once
+            // confirmed.
+            b.Draw(Game1.staminaRect, _resultsArea, Color.Magenta * 0.5f);
             DrawResults(b);
 
             if (canClipResults)

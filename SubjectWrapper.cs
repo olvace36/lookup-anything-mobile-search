@@ -895,13 +895,26 @@ namespace LookupAnythingMobileSearch.Framework
                         // exactly equals the WHOLE sheet's height, that's
                         // a strong sign it's incorrectly reporting the
                         // full multi-frame sheet as if it were a single
-                        // frame (confirmed directly: one monster reported
-                        // 128 tall when the real single frame was only
-                        // 64) - assume 2 frames stacked vertically and use
-                        // half the height instead.
-                        if (frameH == sprite.Texture.Height && frameH > 64)
+                        // frame - confirmed this happens for many
+                        // monsters, not just ones with exactly 2 frames
+                        // stacked. Try dividing by increasing frame
+                        // counts until a reasonable (<=64px) size divides
+                        // evenly, for both width and height independently.
+                        for (int n = 2; n <= 12 && frameH > 64; n++)
                         {
-                            frameH /= 2;
+                            if (sprite.Texture.Height % n == 0 && sprite.Texture.Height / n <= 64)
+                            {
+                                frameH = sprite.Texture.Height / n;
+                                break;
+                            }
+                        }
+                        for (int n = 2; n <= 12 && frameW > 64; n++)
+                        {
+                            if (sprite.Texture.Width % n == 0 && sprite.Texture.Width / n <= 64)
+                            {
+                                frameW = sprite.Texture.Width / n;
+                                break;
+                            }
                         }
                         Rectangle sourceRect = new(0, 0, frameW, frameH);
                         if (target is StardewValley.Monsters.GreenSlime slime)
