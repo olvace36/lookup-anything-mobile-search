@@ -588,7 +588,12 @@ namespace LookupAnythingMobileSearch.Framework
                             // yet - this can happen for hidden/waiting-room
                             // NPCs and freshly-constructed monster previews
                             // that the game never had a normal reason to
-                            // render before now. Try loading it directly.
+                            // render before now. Try loading it directly
+                            // into a local variable - AnimatedSprite.Texture
+                            // is read-only, so it can't be assigned back
+                            // onto the sprite object itself, but we only
+                            // need a valid Texture2D for this draw call.
+                            Texture2D? loadedTexture = null;
                             try
                             {
                                 var texField = sprite.GetType().GetField("textureName",
@@ -597,7 +602,7 @@ namespace LookupAnythingMobileSearch.Framework
                                         System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                                 string? texName = texField?.GetValue(sprite) as string;
                                 if (!string.IsNullOrEmpty(texName))
-                                    sprite.Texture = Game1.content.Load<Texture2D>(texName);
+                                    loadedTexture = Game1.content.Load<Texture2D>(texName);
                             }
                             catch (Exception loadEx)
                             {
@@ -605,6 +610,11 @@ namespace LookupAnythingMobileSearch.Framework
                                 {
                                     ModEntry.SMonitor?.Log($"[SubjectWrapper] Couldn't force-load sprite texture for '{Name}': {loadEx.Message}", LogLevel.Debug);
                                 }
+                            }
+                            if (loadedTexture != null)
+                            {
+                                b.Draw(loadedTexture, centeredPos, sourceRect, tint, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                                return true;
                             }
                         }
                         if (sprite.Texture == null)
