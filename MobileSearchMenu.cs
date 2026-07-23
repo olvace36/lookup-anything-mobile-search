@@ -931,13 +931,7 @@ namespace LookupAnythingMobileSearch.UI
                         new RasterizerState { ScissorTestEnable = true });
             }
 
-            // TEMPORARY DIAGNOSTIC: solid bright background instead of the
-            // normal faint one, so the actual box boundary is clearly
-            // visible - to check whether content really draws outside
-            // this rectangle, or if the boundary was just too faint to
-            // see clearly before. Revert to the normal faint fill once
-            // confirmed.
-            b.Draw(Game1.staminaRect, _resultsArea, Color.Magenta * 0.5f);
+            b.Draw(Game1.staminaRect, _resultsArea, new Color(60, 45, 30) * 0.15f);
             DrawResults(b);
 
             if (canClipResults)
@@ -1207,7 +1201,7 @@ namespace LookupAnythingMobileSearch.UI
                 // rect) turned out not to fully prevent the overflow in
                 // practice, so this is a stronger, unconditional fallback.
                 var iconClipRect = new Rectangle((int)iconPos.X, (int)iconPos.Y, iconSize, iconSize);
-                var safeClip = Rectangle.Intersect(iconClipRect, b.GraphicsDevice.Viewport.Bounds);
+                var safeClip = Rectangle.Intersect(iconClipRect, _resultsArea);
                 if (safeClip.Width > 0 && safeClip.Height > 0)
                 {
                     var prevScissor = b.GraphicsDevice.ScissorRectangle;
