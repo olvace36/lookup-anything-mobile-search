@@ -931,7 +931,7 @@ namespace LookupAnythingMobileSearch.Framework
         // at the top-left corner like most characters).
         private static readonly Dictionary<string, Rectangle> SpriteCropOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["JunimoJade"] = new Rectangle(17, 0, 16, 16),
+            ["JunimoJade"] = new Rectangle(0, 17, 16, 16),
         };
         private static readonly HashSet<string> _loggedModGroupTrace = new();
 
@@ -1293,23 +1293,23 @@ namespace LookupAnythingMobileSearch.Framework
             var data = new Color[region.Width * region.Height];
             source.GetData(0, region, data, 0, data.Length);
 
-            // A real portrait fills the whole 64x64 frame, so scale the
-            // small cropped sprite frame UP to fill that space too
+            // Canvas is 64 wide x 128 tall (per user request) - scale the
+            // small cropped sprite frame UP to fill that space
             // (nearest-neighbor, to keep the pixel-art look crisp rather
-            // than blurry) instead of pasting it at its tiny natural size
-            // into one corner of an otherwise-empty canvas.
-            const int canvasSize = 64;
-            var canvasData = new Color[canvasSize * canvasSize];
-            for (int y = 0; y < canvasSize; y++)
+            // than blurry) instead of pasting it at its tiny natural size.
+            const int canvasW = 64;
+            const int canvasH = 128;
+            var canvasData = new Color[canvasW * canvasH];
+            for (int y = 0; y < canvasH; y++)
             {
-                int srcY = Math.Min(region.Height - 1, y * region.Height / canvasSize);
-                for (int x = 0; x < canvasSize; x++)
+                int srcY = Math.Min(region.Height - 1, y * region.Height / canvasH);
+                for (int x = 0; x < canvasW; x++)
                 {
-                    int srcX = Math.Min(region.Width - 1, x * region.Width / canvasSize);
-                    canvasData[y * canvasSize + x] = data[srcY * region.Width + srcX];
+                    int srcX = Math.Min(region.Width - 1, x * region.Width / canvasW);
+                    canvasData[y * canvasW + x] = data[srcY * region.Width + srcX];
                 }
             }
-            var cropped = new Texture2D(source.GraphicsDevice, canvasSize, canvasSize);
+            var cropped = new Texture2D(source.GraphicsDevice, canvasW, canvasH);
             cropped.SetData(canvasData);
             return cropped;
         }
