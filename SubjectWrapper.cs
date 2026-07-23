@@ -525,8 +525,9 @@ namespace LookupAnythingMobileSearch.Framework
                     }
                     if (t is StardewValley.NPC npcTarget)
                     {
-                        Texture2D? tex = npcTarget.Portrait;
-                        if (tex == null)
+                        bool forceSprite = ForceSpriteOverPortrait.Contains(npcTarget.Name);
+                        Texture2D? tex = forceSprite ? null : npcTarget.Portrait;
+                        if (tex == null && !forceSprite)
                         {
                             // Portrait wasn't loaded into memory yet - this
                             // happens for real, already-spawned NPCs the
@@ -640,7 +641,20 @@ namespace LookupAnythingMobileSearch.Framework
                             var sprite = npcTarget.Sprite;
                             int frameW = sprite.SpriteWidth;
                             int frameH = sprite.SpriteHeight;
-                            var srcRect2 = new Rectangle(0, 0, frameW, frameH);
+                            Rectangle srcRect2;
+                            if (SpriteCropOverrides.TryGetValue(npcTarget.Name, out Rectangle cropOverride))
+                            {
+                                // Confirmed exact pixel coordinates from the
+                                // user for characters whose visible frame
+                                // isn't at the default (0,0) origin.
+                                srcRect2 = cropOverride;
+                                frameW = cropOverride.Width;
+                                frameH = cropOverride.Height;
+                            }
+                            else
+                            {
+                                srcRect2 = new Rectangle(0, 0, frameW, frameH);
+                            }
                             float scale2 = Math.Min(size.X / frameW, size.Y / frameH);
                             float drawW2 = frameW * scale2;
                             float drawH2 = frameH * scale2;
@@ -648,11 +662,54 @@ namespace LookupAnythingMobileSearch.Framework
                             if (_loggedPortraitIssues.Add("npc-sprite-fallback:" + Name))
                             {
                                 ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC sprite fallback used for '{Name}': "
-                                        + $"texSize={sprite.Texture.Width}x{sprite.Texture.Height}, frameSize={frameW}x{frameH}", LogLevel.Debug);
+                                        + $"texSize={sprite.Texture.Width}x{sprite.Texture.Height}, cropRect={srcRect2}", LogLevel.Debug);
                             }
                             b.Draw(sprite.Texture, pos2, srcRect2, Color.White, 0f, Vector2.Zero, scale2, SpriteEffects.None, 1f);
                             return true;
                         }
+
+                        // npcTarget.Sprite itself is null (not just its
+                        // Texture) - this happens for characters whose NPC
+                        // object was never fully positioned/initialized,
+                        // e.g. weather/time-conditional ones like Old
+                        // Mariner. Try loading the standard Characters\
+                        // texture directly and drawing its first frame,
+                        // without relying on the (missing) Sprite object
+                        // at all - confirmed the wiki shows real character
+                        // art exists for this NPC, so the asset should
+                        // still be loadable even if this instance's Sprite
+                        // was never set up.
+                        try
+                        {
+                            var directTex = Game1.content.Load<Texture2D>($"Characters\\{npcTarget.Name}");
+                            if (directTex != null)
+                            {
+                                // Standard NPC sprite sheets use 16x32
+                                // frames; take the first one.
+                                int fw = Math.Min(16, directTex.Width);
+                                int fh = Math.Min(32, directTex.Height);
+                                var fRect = new Rectangle(0, 0, fw, fh);
+                                float fScale = Math.Min(size.X / fw, size.Y / fh);
+                                float fDrawW = fw * fScale;
+                                float fDrawH = fh * fScale;
+                                var fPos = new Vector2(position.X + (size.X - fDrawW) / 2f, position.Y + (size.Y - fDrawH) / 2f);
+                                if (_loggedPortraitIssues.Add("npc-direct-sprite:" + Name))
+                                {
+                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load succeeded for '{Name}' (Sprite was null): "
+                                            + $"texSize={directTex.Width}x{directTex.Height}", LogLevel.Debug);
+                                }
+                                b.Draw(directTex, fPos, fRect, Color.White, 0f, Vector2.Zero, fScale, SpriteEffects.None, 1f);
+                                return true;
+                            }
+                        }
+                        catch (Exception directEx)
+                        {
+                            if (_loggedPortraitIssues.Add("npc-direct-sprite-fail:" + Name))
+                            {
+                                ModEntry.SMonitor?.Log($"[SubjectWrapper] Direct Characters\\ load also failed for '{Name}': {directEx.Message}", LogLevel.Debug);
+                            }
+                        }
+
                         if (_loggedPortraitIssues.Add("npc-no-visual:" + Name))
                         {
                             ModEntry.SMonitor?.Log($"[SubjectWrapper] '{Name}' has neither a usable Portrait nor a Sprite texture - "
@@ -828,6 +885,27 @@ namespace LookupAnythingMobileSearch.Framework
         private static readonly Dictionary<string, string> PortraitAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Leo"] = "ParrotBoy",
+        };
+
+        // Characters whose Portrait is known to be unreliable/wrong (e.g.
+        // a hidden secret character whose Portrait may show something
+        // other than expected) - forces the overworld sprite path instead
+        // for JUST these specific names, rather than changing the
+        // priority for every NPC (which would regress already-working
+        // ones like Cirrus/Roslin, who look better via their Portrait).
+        private static readonly HashSet<string> ForceSpriteOverPortrait = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "JunimoJade",
+        };
+
+        // Precise pixel-coordinate crop overrides for characters whose
+        // visible sprite frame isn't at the default (0,0) origin of their
+        // sheet - confirmed exact coordinates from the user (JunimoJade's
+        // 64x224 sheet has its visible 16x16 frame at x17-32, y0-16, not
+        // at the top-left corner like most characters).
+        private static readonly Dictionary<string, Rectangle> SpriteCropOverrides = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["JunimoJade"] = new Rectangle(17, 0, 16, 16),
         };
         private static readonly HashSet<string> _loggedModGroupTrace = new();
 
