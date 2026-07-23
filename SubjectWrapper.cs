@@ -386,6 +386,17 @@ namespace LookupAnythingMobileSearch.Framework
             ["Sophia"] = "Stardew Valley Expanded", ["Suki"] = "Stardew Valley Expanded",
             ["Susan"] = "Stardew Valley Expanded", ["Victor"] = "Stardew Valley Expanded",
             ["Zoey"] = "Stardew Valley Expanded", ["SVE_Henchman"] = "Stardew Valley Expanded",
+            ["HighlandsDwarf"] = "Stardew Valley Expanded",
+            ["Freya"] = "Stardew Valley Expanded",
+            // SVE Adventurer's Guild Guests (cycle through the guild hall
+            // by season, confirmed by user)
+            ["Gertrude"] = "Stardew Valley Expanded", ["Cordelia"] = "Stardew Valley Expanded",
+            ["Cassandra"] = "Stardew Valley Expanded", ["Sawyer"] = "Stardew Valley Expanded",
+            ["Drake"] = "Stardew Valley Expanded", ["Brock"] = "Stardew Valley Expanded",
+            ["Brianna"] = "Stardew Valley Expanded", ["Emin"] = "Stardew Valley Expanded",
+            ["Treyvon"] = "Stardew Valley Expanded", ["Hank"] = "Stardew Valley Expanded",
+            ["Charlie"] = "Stardew Valley Expanded",
+            ["Gale"] = "Stardew Valley Expanded", ["Edmund"] = "Stardew Valley Expanded",
 
             // Ridgeside Village - verified from Data/NPCData/Dispositions.json entry keys
             ["Acorn"] = "Ridgeside Village", ["Aguar"] = "Ridgeside Village", ["Alissa"] = "Ridgeside Village",
@@ -452,6 +463,12 @@ namespace LookupAnythingMobileSearch.Framework
             if (!IsFromMod()) return "Vanilla";
             string cat = GetCategory();
 
+            if (_loggedModGroupTrace.Add(Name))
+            {
+                ModEntry.SMonitor?.Log($"[SubjectWrapper] ModGroupLabel trace for '{Name}': category={cat}, InternalName='{InternalName}', "
+                        + $"inNpcTable={NpcNameToModName.ContainsKey(InternalName)}", LogLevel.Debug);
+            }
+
             if (cat == "Monsters" && MonsterNameToModName.TryGetValue(InternalName, out string? mName))
                 return mName;
             if (cat == "NPCs" && NpcNameToModName.TryGetValue(InternalName, out string? nName))
@@ -502,21 +519,63 @@ namespace LookupAnythingMobileSearch.Framework
                         ModEntry.SMonitor?.Log($"[SubjectWrapper] NPC portrait trace for '{Name}': target={(t == null ? "null" : t.GetType().FullName)}, "
                                 + $"isNpc={isNpc}, hasPortrait={hasPortrait}", LogLevel.Debug);
                     }
-                    if (t is StardewValley.NPC npcTarget && npcTarget.Portrait != null)
+                    if (t is StardewValley.NPC npcTarget)
                     {
-                        var tex = npcTarget.Portrait;
-                        // Standard portrait sheets are laid out in 64x64
-                        // headshot cells; the first (top-left) cell is the
-                        // neutral/default expression.
-                        int cellW = Math.Min(64, tex.Width);
-                        int cellH = Math.Min(64, tex.Height);
-                        var srcRect = new Rectangle(0, 0, cellW, cellH);
-                        float scale = Math.Min(size.X / cellW, size.Y / cellH);
-                        float drawW = cellW * scale;
-                        float drawH = cellH * scale;
-                        var pos = new Vector2(position.X + (size.X - drawW) / 2f, position.Y + (size.Y - drawH) / 2f);
-                        b.Draw(tex, pos, srcRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-                        return true;
+                        Texture2D? tex = npcTarget.Portrait;
+                        if (tex == null)
+                        {
+                            // Portrait wasn't loaded into memory yet - this
+                            // happens for real, already-spawned NPCs the
+                            // game just hasn't needed to show a portrait
+                            // for recently (confirmed via log: several
+                            // vanilla NPCs like Leo had a real NPC target
+                            // but a null Portrait). Try loading it
+                            // directly from the standard content path.
+                            try { tex = Game1.content.Load<Texture2D>($"Portraits\\{npcTarget.Name}"); }
+                            catch (Exception loadEx)
+                            {
+                                if (_loggedPortraitIssues.Add("npc-portrait-load:" + Name))
+                                {
+                                    ModEntry.SMonitor?.Log($"[SubjectWrapper] Couldn't force-load portrait for NPC '{Name}': {loadEx.Message}", LogLevel.Debug);
+                                }
+                            }
+                        }
+                        if (tex != null)
+                        {
+                            // Standard portrait sheets are laid out in 64x64
+                            // headshot cells; the first (top-left) cell is the
+                            // neutral/default expression.
+                            int cellW = Math.Min(64, tex.Width);
+                            int cellH = Math.Min(64, tex.Height);
+                            var srcRect = new Rectangle(0, 0, cellW, cellH);
+                            float scale = Math.Min(size.X / cellW, size.Y / cellH);
+                            float drawW = cellW * scale;
+                            float drawH = cellH * scale;
+                            var pos = new Vector2(position.X + (size.X - drawW) / 2f, position.Y + (size.Y - drawH) / 2f);
+                            b.Draw(tex, pos, srcRect, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                            return true;
+                        }
+
+                        // No portrait at all - some "guest"/map-based
+                        // characters (e.g. SVE's Adventurer's Guild
+                        // Guests, which the game treats more like a map
+                        // fixture than a full social NPC) may not use the
+                        // normal portrait system. Fall back to their
+                        // overworld walking sprite instead, same approach
+                        // already working for monsters.
+                        if (npcTarget.Sprite?.Texture != null)
+                        {
+                            var sprite = npcTarget.Sprite;
+                            int frameW = sprite.SpriteWidth;
+                            int frameH = sprite.SpriteHeight;
+                            var srcRect2 = new Rectangle(0, 0, frameW, frameH);
+                            float scale2 = Math.Min(size.X / frameW, size.Y / frameH);
+                            float drawW2 = frameW * scale2;
+                            float drawH2 = frameH * scale2;
+                            var pos2 = new Vector2(position.X + (size.X - drawW2) / 2f, position.Y + (size.Y - drawH2) / 2f);
+                            b.Draw(sprite.Texture, pos2, srcRect2, Color.White, 0f, Vector2.Zero, scale2, SpriteEffects.None, 1f);
+                            return true;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -680,6 +739,7 @@ namespace LookupAnythingMobileSearch.Framework
             return false;
         }
         private static readonly HashSet<string> _loggedPortraitIssues = new();
+        private static readonly HashSet<string> _loggedModGroupTrace = new();
 
         public string GetCategory()
         {
