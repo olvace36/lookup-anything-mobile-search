@@ -553,6 +553,10 @@ namespace LookupAnythingMobileSearch
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                Monitor.Log("Error loading Data/Characters for the full NPC list: " + ex.Message, LogLevel.Warn);
+            }
 
             // SnS "temporary actor" Stygium sprites - confirmed from the
             // mod's own TemporaryActors.json to reuse the same monster
@@ -580,10 +584,6 @@ namespace LookupAnythingMobileSearch
                 {
                     Monitor.Log($"Skipped SnS temp-actor '{rawName}': {ex.Message}", LogLevel.Trace);
                 }
-            }
-            catch (Exception ex)
-            {
-                Monitor.Log("Error loading Data/Characters for the full NPC list: " + ex.Message, LogLevel.Warn);
             }
 
             Monitor.Log($"Built {result.Count} villager subjects for search (including locked/unmet ones).", LogLevel.Debug);
