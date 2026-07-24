@@ -485,29 +485,24 @@ namespace LookupAnythingMobileSearch
                 }
 
                 var wrapped = SubjectWrapper.Create(__instance);
-                bool isThaiLang = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.th;
 
-                if (wrapped != null)
+                if (wrapped != null && SubjectWrapper.MonsterStatsI18nKeys.TryGetValue(wrapped.InternalName, out string? statsKey) && STranslation != null)
                 {
-                    var realStatsDict = isThaiLang ? SubjectWrapper.MonsterRealStatsTH : SubjectWrapper.MonsterRealStats;
-                    if (!realStatsDict.TryGetValue(wrapped.InternalName, out string? realStats) && isThaiLang)
-                        SubjectWrapper.MonsterRealStats.TryGetValue(wrapped.InternalName, out realStats); // fall back to English if no Thai entry exists yet
-                    if (realStats != null)
+                    string realStats = STranslation.Get(statsKey).Default("");
+                    if (!string.IsNullOrEmpty(realStats))
                     {
-                        string label = STranslation?.Get("field.actual-stats").Default("Actual stats (per wiki/mod data)") ?? "Actual stats (per wiki/mod data)";
+                        string label = STranslation.Get("field.actual-stats").Default("Actual stats (per wiki/mod data)");
                         extraFields.Add(Activator.CreateInstance(_genericFieldType,
                                 new object?[] { label, realStats, null })!);
                     }
                 }
 
-                if (wrapped != null)
+                if (wrapped != null && SubjectWrapper.MonsterTipsI18nKeys.TryGetValue(wrapped.InternalName, out string? tipsKey) && STranslation != null)
                 {
-                    var tipsDict = isThaiLang ? SubjectWrapper.MonsterCombatTipsTH : SubjectWrapper.MonsterCombatTips;
-                    if (!tipsDict.TryGetValue(wrapped.InternalName, out string? tip) && isThaiLang)
-                        SubjectWrapper.MonsterCombatTips.TryGetValue(wrapped.InternalName, out tip); // fall back to English if no Thai entry exists yet
-                    if (tip != null)
+                    string tip = STranslation.Get(tipsKey).Default("");
+                    if (!string.IsNullOrEmpty(tip))
                     {
-                        string label = STranslation?.Get("field.combat-tips").Default("Combat tips") ?? "Combat tips";
+                        string label = STranslation.Get("field.combat-tips").Default("Combat tips");
                         extraFields.Add(Activator.CreateInstance(_genericFieldType,
                                 new object?[] { label, tip, null })!);
                     }
