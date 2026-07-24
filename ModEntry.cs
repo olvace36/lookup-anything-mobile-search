@@ -396,7 +396,7 @@ namespace LookupAnythingMobileSearch
                     // Lookup Anything's own GetMonsterNames() never
                     // returns for some reason - attempted directly here
                     // instead of relying solely on its enumeration.
-                    .Concat(new[] { "Armored Bug", "Assassin Bug", "Haunted Skull", "Mutant Fly", "Mutant Grub", "Shadow Girl", "Stick Bug" })
+                    .Concat(new[] { "Armored Bug", "Assassin Bug", "Haunted Skull", "Mutant Fly", "Mutant Grub", "Shadow Girl", "Stick Bug", "Angry Roger" })
                     .Distinct().ToList();
             foreach (string name in names)
             {
@@ -426,7 +426,9 @@ namespace LookupAnythingMobileSearch
                             // (e.g. "RSVSerperial.png"), unlike SVE's
                             // plain concatenated-name convention.
                             bool isRsv = name is "Serperial" or "Viperial" or "Wraith" or "Corrupted Spirit" or "Beast 1" or "Beast 2" or "Beast 3";
-                            string assetKey = (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
+                            string assetKey = name == "Toxic Bubble (Weak Variant)"
+                                    ? "ToxicBubble_Variant"
+                                    : (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
                             var tex = Game1.content.Load<Texture2D>($"Characters\\Monsters\\{assetKey}");
                             if (tex != null && fake.Sprite != null)
                                 fake.Sprite = new AnimatedSprite($"Characters\\Monsters\\{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);

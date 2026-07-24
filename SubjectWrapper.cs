@@ -335,7 +335,7 @@ namespace LookupAnythingMobileSearch.Framework
 
         private static readonly HashSet<string> VanillaMonsters = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Green Slime", "Sludge", "Frost Jelly", "Tiger Slime", "Big Slime",
+            "Green Slime", "Sludge", "Frost Jelly", "Purple Slime", "Copper Slime", "Iron Slime", "Yellow Slime", "Black Slime", "Tiger Slime", "Big Slime",
             "Bat", "Frost Bat", "Lava Bat", "Iridium Bat", "Haunted Skull",
             "Bug", "Assassin Bug", "Armored Bug", "Duggy", "Magma Duggy",
             "Rock Crab", "Lava Crab", "Iridium Crab", "Stick Bug", "Grub",
@@ -347,7 +347,7 @@ namespace LookupAnythingMobileSearch.Framework
             "Magma Sprite", "Magma Sparker", "Dwarvish Sentry", "False Magma Cap",
             "Hot Head", "Lava Lurk", "Shadow Guy", "Shadow Girl", "Truffle Crab",
             "Skeleton Warrior",
-            "Spiker", "Crow", "Fireball", "Frog", "Cat",
+            "Spiker", "Crow", "Fireball", "Frog", "Cat", "Angry Roger",
         };
 
         // Vanilla farm animal / critter species (not individual pet names -
@@ -536,6 +536,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Swamp Putrid Ghost"] = "Putrid Ghost",
             ["Swamp Flower Crab"] = "Truffle Crab",
             ["Toxic Bubble"] = "Ghost",
+            ["Toxic Bubble (Weak Variant)"] = "Haunted Skull",
             ["Legendary Purple Mushroom Crab"] = "Iridium Crab",
             ["Legendary Sand Scorpion"] = "Iridium Golem",
             ["Legendary Gold Slime"] = "Iridium Golem",
@@ -548,9 +549,15 @@ namespace LookupAnythingMobileSearch.Framework
             // variants of a real base monster (same pattern as SVE's
             // danger-zone reskins) rather than truly non-existent.
             ["Sludge"] = "Green Slime",
+            ["Purple Slime"] = "Green Slime", ["Copper Slime"] = "Green Slime", ["Iron Slime"] = "Green Slime",
+            ["Yellow Slime"] = "Green Slime",
+            ["Black Slime"] = "Green Slime",
             ["Frost Jelly"] = "Green Slime",
             ["Shadow Guy"] = "Shadow Brute",
             ["Skeleton Warrior"] = "Skeleton",
+            ["Mutant Fly"] = "Fly", ["Mutant Grub"] = "Grub",
+            ["Armored Bug"] = "Bug", ["Assassin Bug"] = "Bug", ["Stick Bug"] = "Bug",
+            ["Haunted Skull"] = "Bat",
             // RSV custom monsters - confirmed from wiki text reviewed
             // earlier ("based on X" statements for each).
             ["Serperial"] = "Royal Serpent",
@@ -560,7 +567,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Beast 1"] = "Shadow Brute", ["Beast 2"] = "Shadow Brute", ["Beast 3"] = "Shadow Brute",
             // East Scarp custom monsters - confirmed from its own
             // FarmTypeManager config ("East Scarp FTM/content.json").
-            ["ES Mine Bat"] = "Frost Bat",
+            ["ES Mine Bat"] = "Lava Bat",
             ["ES Mine Bat Iridium"] = "Bat",
         };
 
@@ -600,7 +607,8 @@ namespace LookupAnythingMobileSearch.Framework
             ["Bully Rex"] = "Stardew Valley Expanded", ["Poltergeist"] = "Stardew Valley Expanded",
             ["Sand Scorpion"] = "Stardew Valley Expanded", ["Swamp Golem"] = "Stardew Valley Expanded",
             ["Swamp Lurk"] = "Stardew Valley Expanded", ["Swamp Putrid Ghost"] = "Stardew Valley Expanded",
-            ["Toxic Bubble"] = "Stardew Valley Expanded", ["Legendary Gold Slime"] = "Stardew Valley Expanded",
+            ["Toxic Bubble"] = "Stardew Valley Expanded", ["Toxic Bubble (Weak Variant)"] = "Stardew Valley Expanded",
+            ["Legendary Gold Slime"] = "Stardew Valley Expanded",
             ["Legendary Purple Mushroom Crab"] = "Stardew Valley Expanded", ["Legendary Sand Scorpion"] = "Stardew Valley Expanded",
             ["Copper Crab"] = "Stardew Valley Expanded", ["Gold Crab"] = "Stardew Valley Expanded",
             ["Iron Crab"] = "Stardew Valley Expanded", ["Royal Badlands Serpent"] = "Stardew Valley Expanded",
@@ -1144,35 +1152,65 @@ namespace LookupAnythingMobileSearch.Framework
         // stats, not these actual values.
         internal static readonly Dictionary<string, string> MonsterRealStats = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Apophis"] = "20,000 HP, 120 damage (per source; wiki text separately cites 13,000 HP - exact figure may vary by version)",
-            ["Badlands Serpent"] = "150-320 HP, 25-35 damage",
-            ["Bully Rex"] = "13,000 HP",
-            ["Corrupt Mummy"] = "2,000 HP",
-            ["Corrupt Serpent"] = "1,300 HP",
-            ["Corrupt Spirit"] = "335 HP",
-            ["Fallen Adventurer"] = "400 HP",
-            ["Legendary Gold Slime"] = "10,000 HP",
-            ["Legendary Purple Mushroom Crab"] = "6,000 HP",
-            ["Legendary Sand Scorpion"] = "12,000 HP",
-            ["Poltergeist"] = "1,000 HP",
-            ["Sand Scorpion"] = "80 HP",
-            ["Swamp Golem"] = "220 HP",
-            ["Swamp Lurk"] = "230 HP",
-            ["Swamp Putrid Ghost"] = "750 HP",
-            ["Swamp Flower Crab"] = "90 HP, 25 damage",
-            ["Toxic Bubble"] = "180 HP",
-            ["Royal Badlands Serpent"] = "850 HP, 65 damage",
-            ["Beast 1"] = "400 HP",
-            ["Beast 2"] = "550 HP",
-            ["Beast 3"] = "700 HP",
-            ["Corrupted Spirit"] = "60 HP (100 HP in the Corrupted Spirit Realm)",
-            ["Serperial"] = "1,500 HP base, +50 HP per tail segment (3-18 segments)",
-            ["Viperial"] = "3,000 HP",
-            ["Wraith"] = "200 HP",
+            ["Sludge"] = "205 HP, 16 damage, 0 defense (shown as Green Slime's 24/5/1 instead). Found in the Mines floors 81-119 / Farm at Combat Level 8-9 (not Green Slime's floors 1-29). Drops: Coal (1-3, 10%), Diamond (1%), Dwarf Scroll III (0.5%), Dwarf Scroll IV (0.1%), Red Slime Egg (1%, needs Slime Hutch), Sap (50%), Slime (80%), White Algae (10%), plus color-based drops.",
+            ["Frost Jelly"] = "106 HP, 7 damage, 0 defense (shown as Green Slime's 24/5/1 instead). Found in the Mines floors 41-79 / Secret Woods / Farm at Combat Level 4-7 (not Green Slime's floors 1-29). Drops: Blue Slime Egg (1%, needs Slime Hutch), Dwarf Scroll II (0.5%), Dwarf Scroll III (1.5%), Dwarf Scroll IV (0.1%), Jade (2%), Mahogany Seed (10%, Secret Woods only), Sap (50%), Slime (75%), Winter Root (8%).",
+            ["Purple Slime"] = "410 HP, 16 damage, 0 defense (shown as Green Slime's 24/5/1 instead). Found in the Skull Cavern (1% chance) / Farm at Combat Level 10. Drops: Coal (1-3, 10%), Diamond (1%), Dwarf Scroll III (0.5%), Dwarf Scroll IV (0.1%), Iridium Bar (0.9%), Iridium Ore (repeated 8% rolls), Purple Slime Egg (1%, needs Slime Hutch), Red Cabbage Seeds (0.125%, first gen only), Sap (50%), Slime (80%), White Algae (10%).",
+            ["Copper Slime"] = "102 HP, 16 damage, 0 defense, speed 4 (shown as Green Slime's 24/5/1/2 instead). Found in the Quarry Mine and random dungeon floors in the Mines. Drops: Copper Ore (repeated 33% rolls), Diamond (1%), Dwarf Scroll III (0.5%), Dwarf Scroll IV (0.1%), Sap (50%), Slime (80%), White Algae (10%).",
+            ["Iron Slime"] = "205 HP, 16 damage, 0 defense, speed 1 (shown as Green Slime's 24/5/1/2 instead). Found in the Quarry Mine and random dungeon floors in the Mines. Drops: Diamond (1%), Dwarf Scroll III (0.5%), Dwarf Scroll IV (0.1%), Iron Ore (repeated 33% rolls), Sap (50%), Slime (80%), White Algae (10%).",
+            ["Yellow Slime"] = "No fixed stats - this rare golden recolor can replace ANY slime type, with 3x that slime's HP and 2x its damage (e.g. replacing a Green Slime gives 72 HP/10 damage). Found in the Mines and Skull Cavern. Drops the replaced slime's normal loot.",
+            ["Black Slime"] = "No fixed stats - keeps whatever slime it was before being transformed (same HP/damage/properties). Only occurs in a Slime Hutch, via a random event where the Witch flies over at night and turns some of the slimes inside black/transparent. Drops the original slime's normal loot.",
+            ["Shadow Guy"] = "125 HP, 20 damage (confirmed from the game's own Monsters.xnb data - shown as Shadow Brute's 160 HP/18 damage instead)",
+            ["Skeleton Warrior"] = "300 HP, 12 damage (confirmed from the game's own Monsters.xnb data - shown as Skeleton's 140 HP/10 damage instead)",
+            ["Stick Bug"] = "700 HP, 20 damage, 2 defense - confirmed exact stats, vs Bug's 1 HP/8 damage/0 defense",
+            ["Mutant Grub"] = "100 HP, 12 damage, 0 defense - confirmed exact stats, vs Grub's 20 HP/4 damage",
+            ["Mutant Fly"] = "66 HP, 12 damage, 1 defense - confirmed exact stats, vs Fly's 22 HP/6 damage",
+            ["Haunted Skull"] = "160 HP, 15 damage, 1 defense - confirmed exact stats, vs Bat's 24 HP/6 damage",
+            ["ES Mine Bat Iridium"] = "300 HP, 30 damage, 3 defense (confirmed directly from East Scarp's own mod config) - identical to vanilla Iridium Bat's stats, but shown as plain Bat's 24 HP/6 damage instead since it's built from that generic base",
+            ["Apophis"] = "12,500 HP (most precise source found), 120 damage, 0 defense, speed 2 - other sources cite 13,000, 20,000, or 5,000 HP, likely reflecting different mod versions. Spawns with 7 tail segments in the southwest Boneyard area of the Crimson Badlands - only one per day. Found in the Crimson Badlands, not Royal Serpent's usual Skull Cavern. Drops: Void Shard (1), Void Essence (24).",
+            ["Badlands Serpent"] = "150-320 HP, 25-35 damage, 0 defense, speed 2 (vs vanilla Serpent's real 150 HP/23 damage/0 defense/speed 2). Found in the Crimson Badlands, not Serpent's usual Skull Cavern. Drops: Void Essence (99%), Void Essence (15%), Bomb (15%), Spicy Eel (6%), Diamond (0.8%), Prismatic Shard (0.8%), Rabbit's Foot (0.8%), Prismatic Shard (0.1%).",
+            ["Bully Rex"] = "13,000 HP, 135 damage, ~7 defense. Found atop the Highlands Mountain (bone yard at the summit), not Pepper Rex's usual Skull Cavern - only one spawns per day. Drops: Golden Key (first kill only, unlocks the Highlands Dwarf quest), Ornate Treasure Chest, Treasure Chest, Copper Bar (4), Iron Bar (2), Dinosaur Egg.",
+            ["Corrupt Mummy"] = "2,000 HP, 105 damage, 0 defense, speed 2 (confirmed from SVE's own official wiki comparison table, vs vanilla Mummy's 260/30/0/2). Found in the Crimson Badlands (15 guard a cave entrance) and Iridium Quarry, not Mummy's usual Skull Cavern. Drops: Solar Essence (100%), Void Essence x2 (100%), Void Pebble (100%), Void Delight (guaranteed once/day).",
+            ["Corrupt Serpent"] = "HP/damage conflict across sources: the wiki's own infobox shows 1,300 HP/60 damage, its comparison table on the same page shows 1,500 HP/65 damage, and the mod's FarmTypeManager config shows 2,000 HP/75 damage - genuinely unclear which is current/correct. 0 defense, speed 2 in all sources. Found in the Crimson Badlands (5-11 spawn per day depending on config), not Serpent's usual location - same behavior as a Serpent. Drops (confirmed - NOT the same as Badlands Serpent): Void Pebble (1, 100%), Void Essence (3, 100%), Spicy Eel (1, 100%).",
+            ["Corrupt Spirit"] = "335 HP per wiki text, but the mod's own FarmTypeManager data shows 2,000 HP instead - these two sources conflict and it's unclear which is currently accurate; 55 damage. Found in the Crimson Badlands' Iridium Quarry (not the Skull Cavern, where Carbon Ghost normally appears). Drops: Void Pebble (100%), Solar Essence x3 (100%).",
+            ["Fallen Adventurer"] = "400 HP, 60 damage, 70 defense (confirmed from SVE's own official wiki - this corrects an earlier figure of 3,000 HP pulled from a different/higher-tier FarmTypeManager config block; the dedicated mod wiki is trusted as the more authoritative source here). Found in the Crimson Badlands (male/female sprite variants), not Mummy's usual Skull Cavern. Drops: Rusty Blade (1), Void Essence (6).",
+            ["Legendary Gold Slime"] = "10,000 HP, 80 damage, 0 defense (vs Iridium Golem's real 430 HP/15 damage/1 defense - confirmed correct base after re-checking with the proper internal key \"LegendarySlime\", no space). Boss monster in the Highlands - unlocked via Marlon's Legendary Trio quest, only one spawns per day, appears outdoors regardless of season/weather, can be killed multiple times. The Slime Charmer Ring does NOT prevent its damage. Drops: Gold/Green/Blue/Red/Purple/Tiger Slime Egg, Gold Carrot Seed.",
+            ["Legendary Purple Mushroom Crab"] = "6,000 HP. Found in the Forbidden Maze (Marshlands), not Iridium Crab's usual Skull Cavern. Disguises itself as an ordinary purple mushroom.",
+            ["Legendary Sand Scorpion"] = "12,000 HP, 100 damage, 1 defense, speed 6 (also known as \"Legendary Diamond Sand Scorpion\" on the wiki - confirmed correct base Iridium Golem after re-checking with the proper internal key \"LegendarySandScorpion\", no space; it burrows up through the ground like an Iridium Golem). Boss monster in the Crimson Badlands - unlocked via Marlon's Legendary Trio quest, only one spawns per day, appears outdoors regardless of season/weather, can be killed multiple times. Drops: Galdoran Gem, Magic Lamp, Ornate Treasure Chest, Gold Carrot Seed.",
+            ["Poltergeist"] = "1,000 HP, 120 damage, 0 defense. Found in the Forbidden Maze (Marshlands), not Pepper Rex's usual Skull Cavern. Drops: Supernatural Goo (1), Ghost Crystal (1), Solar Essence (5).",
+            ["Sand Scorpion"] = "80 HP, 100 damage, 0 defense (vs Wilderness Golem's real 30 HP/5 damage/1 defense/speed 3). Stays burrowed in sand holes until the player approaches. Found in the Crimson Badlands, not Wilderness Golem's usual Farm spawns. Drops: Bug Meat (1), Void Pebble.",
+            ["Swamp Golem"] = "220 HP, 40 damage, 0 defense (vs Wilderness Golem's real 30 HP/5 damage/1 defense/speed 3). Found in the Forbidden Maze (Marshlands), not Wilderness Golem's usual Farm spawns. Drops: Sludge (1), Fiber (1).",
+            ["Swamp Lurk"] = "230 HP. Found in the Forbidden Maze (Marshlands), not Lava Lurk's usual Volcano Dungeon. Drops: Sludge.",
+            ["Swamp Putrid Ghost"] = "750 HP, 40 damage, 0 defense (vs Putrid Ghost's real 500 HP/25 damage/3 defense/speed 4). Found in the Forbidden Maze (Marshlands), not Putrid Ghost's usual Dangerous Mines floors 51-69. Drops: Swamp Essence (3).",
+            ["Swamp Flower Crab"] = "90 HP, 25 damage. Found in the Marshlands/Forbidden Maze, not Truffle Crab's usual Farm spawns. Drops: Swamp Flower (1). Disguises itself as an ordinary Swamp Flower.",
+            ["Toxic Bubble"] = "180 HP, 40 damage (standard); Challenging variant 200 HP/45 damage; weaker Variant 1 HP/36 damage. Found in the Forbidden Maze (Marshlands), not the Mines where Ghost normally appears. Drops: Swamp Essence (1), Sludge.",
+            ["Toxic Bubble (Weak Variant)"] = "1 HP, 36 damage - confirmed to use Haunted Skull as its base (not Ghost, like the standard/Challenging Toxic Bubble tiers). Found in the Forbidden Maze (Marshlands). Drops: Swamp Essence (1), Sludge.",
+            ["Royal Badlands Serpent"] = "850 HP, 65 damage (vs Royal Serpent's real formula of 150 + 50 per tail segment, 32-48 damage). Found in the Crimson Badlands, not Royal Serpent's usual Skull Cavern. Drops: Bomb (15%), Prismatic Shard, Rabbit's Foot (0.8%), Red Cabbage Seeds (0.2%), Spicy Eel (6%), Void Essence.",
+            ["Copper Crab"] = "200 HP (confirmed from the mod's own FarmTypeManager config, vs Rock Crab's real 30 HP/5 damage/1 defense). Found in the Highlands Cavern and Crystal Cavern (northwest Highlands), not Rock Crab's usual Mines. Drops: Copper Ore (high chance), Copper Bar, Crab, Cherry Bomb.",
+            ["Gold Crab"] = "300 HP (confirmed from the mod's own FarmTypeManager config, vs Rock Crab's real 30 HP/5 damage/1 defense). Found in the Highlands Cavern and Crystal Cavern (northwest Highlands), not Rock Crab's usual Mines. Drops: Gold Ore (high chance), Gold Bar, Crab, Mega Bomb.",
+            ["Iron Crab"] = "250 HP (confirmed from the mod's own FarmTypeManager config, vs Rock Crab's real 30 HP/5 damage/1 defense). Found in the Highlands Cavern and Crystal Cavern (northwest Highlands), not Rock Crab's usual Mines. Drops: Iron Ore (high chance), Iron Bar, Crab, Bomb.",
+            ["Beast 1"] = "400 HP, 10 defense, speed 3; 25 damage in Ridge Forest, 15 damage in Corrupted Spirit Realm (vs Shadow Brute's real 160 HP/18 damage/2 defense). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Shadow Brute's usual Mines floors 81-119. Carrying a Village Hero Sculpture prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Drops: Spiritual Essence.",
+            ["Beast 2"] = "550 HP, 10 defense, speed 3; 45 damage in Ridge Forest, 35 damage in Corrupted Spirit Realm (vs Shadow Brute's real 160 HP/18 damage/2 defense). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Shadow Brute's usual Mines floors 81-119. Carrying a Village Hero Sculpture prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Drops: Spiritual Essence.",
+            ["Beast 3"] = "700 HP, 10 defense, speed 3; 60 damage in Ridge Forest, 50 damage in Corrupted Spirit Realm (vs Shadow Brute's real 160 HP/18 damage/2 defense). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Shadow Brute's usual Mines floors 81-119. Carrying a Village Hero Sculpture prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Drops: Spiritual Essence.",
+            ["Corrupted Spirit"] = "60 HP (100 HP in the Corrupted Spirit Realm). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Ghost's usual Mines (51-79).",
+            ["Serperial"] = "1,500 HP base, +50 HP per tail segment (3-18 segments, matching Royal Serpent's own formula), 20 damage, 5 defense, speed 2. Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Royal Serpent's usual Skull Cavern. Carrying an Ancient Music Box prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Drops: Spiritual Essence (used to buy weapons from the hidden Mystic Falls shop), Mountain Mistbloom (7).",
+            ["Viperial"] = "3,000 HP, 30 damage, 5 defense in Ridge Forest; 2,000 HP, 20 damage in the Corrupted Spirit Realm (a distinct weaker variant there). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Pepper Rex's usual Skull Cavern. Carrying an Ancient Music Box prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Drops: Spiritual Essence (used to buy weapons from the hidden Mystic Falls shop), Golden Skull Coral, Entombed Ring.",
+            ["Wraith"] = "200 HP, 10 damage, 3 defense, speed 4 (same stats in both the Ridge Forest and Corrupted Spirit Realm; identical defense/speed to real Putrid Ghost, but much lower HP/damage than its 500 HP/25 damage). Found in Ridgeside Village's Ridge Forest / Corrupted Spirit Realm, not Putrid Ghost's usual Dangerous Mines floors 51-69. Carrying an Everfrost Stone prevents it from spawning in the Ridge Forest (but not the Corrupted Spirit Realm). Can inflict a Nauseated debuff (cured by Ginger or Ginger Ale). Drops: Spiritual Essence (used to buy weapons from the hidden Mystic Falls shop).",
         };
 
         internal static readonly Dictionary<string, string> MonsterCombatTips = new(StringComparer.OrdinalIgnoreCase)
         {
+            ["Sludge"] = "Built from the same Green Slime data/sprite system as all slime colors, but with its own stat block (205 HP vs Green Slime's 24 HP) - found in the fiery deep Mine floors (80-119).",
+            ["Frost Jelly"] = "Built from the same Green Slime data/sprite system as all slime colors, but with its own stat block (106 HP vs Green Slime's 24 HP) - found in the icy Mine floors (40-79).",
+            ["Shadow Guy"] = "Same sprite family as Shadow Brute but with its own distinct stat block (125 HP/20 dmg vs Shadow Brute's 160 HP/18 dmg) and is not flagged as a normal \"mine monster\" - may be tied to a specific event/quest context rather than regular Mine spawns.",
+            ["Skeleton Warrior"] = "Has its own distinct stat block (300 HP/12 dmg vs Skeleton's 140 HP/10 dmg) but doesn't appear to be an actively spawning monster in the current base game - likely unused/legacy content.",
+            ["Armored Bug"] = "Shares the exact same stats as a regular Bug (per the wiki), but is completely invincible except to weapons enchanted with Bug Killer. Found in the Skull Cavern rather than the regular Mines.",
+            ["Assassin Bug"] = "Confirmed to be a temporary Calico Statue transformation of Armored Bug during the Desert Festival's Skull Cavern runs - critically, unlike Armored Bug (which needs the Bug Killer enchantment), Assassin Bugs CAN be killed with ordinary weapons. Exact HP/damage numbers not yet confirmed.",
+            ["Stick Bug"] = "700 HP, 20 damage, 2 defense - vastly higher than a regular Bug's 1 HP/8 damage, confirmed exact stats. Disguises as a piece of wood; found in the Dangerous Mines floors 41-69.",
+            ["Mutant Grub"] = "100 HP, 12 damage, 0 defense - confirmed exact stats, vs Grub's 20 HP/4 damage. Found only in the Mutant Bug Lair (unlike a regular Grub, found in the standard Mines) - hatches into a Mutant Fly when critically damaged, rather than a Cave Fly.",
+            ["Mutant Fly"] = "66 HP, 12 damage, 1 defense - confirmed exact stats, vs Fly's 22 HP/6 damage. The evolved form of a Mutant Grub, found only in the Mutant Bug Lair and Skull Cavern prehistoric floors - flies through walls at high speed, unlike a regular Cave Fly.",
+            ["Haunted Skull"] = "160 HP, 15 damage, 1 defense - confirmed exact stats, vs Bat's 24 HP/6 damage. Confirmed by the wiki to reuse Bat's constructor/stat logic in the game's code, but behaves more erratically - can suddenly screech and approach from off-screen in a random direction, and drops different loot than a normal Bat.",
+            ["ES Mine Bat"] = "Built from Lava Bat (not a generic Bat) per East Scarp's own mod config - appears in East Scarp's mines at Combat skill level 7+.",
+            ["ES Mine Bat Iridium"] = "300 HP, 30 damage, 3 defense - confirmed exact stats from East Scarp's mod config, identical to vanilla Iridium Bat's own stats despite being built from the generic Bat base.",
             ["Copper Crab"] = "Disguises itself as a stationary copper ore node until approached or struck. Hit its shell with a pickaxe first to break its defense before attacking with a weapon.",
             ["Gold Crab"] = "Disguises itself as a stationary gold ore node until approached or struck. Hit its shell with a pickaxe first to break its (very high) defense before attacking with a weapon.",
             ["Iron Crab"] = "Disguises itself as a stationary iron ore node until approached or struck. Hit its shell with a pickaxe first to break its defense before attacking with a weapon.",
@@ -1185,7 +1223,8 @@ namespace LookupAnythingMobileSearch.Framework
             ["Beast 1"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
             ["Beast 2"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
             ["Beast 3"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
-            ["Toxic Bubble"] = "A flying enemy that actively chases the player through the air.",
+            ["Toxic Bubble"] = "A flying enemy that actively chases the player through the air - the sturdier version flies like a Ghost, while the weaker (1 HP) variant flies more erratically like a Haunted Skull.",
+            ["Toxic Bubble (Weak Variant)"] = "The weakest Toxic Bubble tier - only 1 HP but hits for 36 damage, so it's a glass cannon. Flies erratically like a Haunted Skull rather than a Ghost.",
         };
 
         internal static readonly Dictionary<string, string> MonsterVariantSpawnConditions = new(StringComparer.OrdinalIgnoreCase)
