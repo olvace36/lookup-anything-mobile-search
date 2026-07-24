@@ -345,6 +345,12 @@ namespace LookupAnythingMobileSearch
                 }
 
                 var wrapped = SubjectWrapper.Create(__instance);
+                if (wrapped != null && SubjectWrapper.MonsterRealStats.TryGetValue(wrapped.InternalName, out string? realStats))
+                {
+                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                            new object?[] { "Actual stats (per wiki/mod data)", realStats, null })!);
+                }
+
                 if (wrapped != null && SubjectWrapper.MonsterCombatTips.TryGetValue(wrapped.InternalName, out string? tip))
                 {
                     extraFields.Add(Activator.CreateInstance(_genericFieldType,
@@ -389,8 +395,50 @@ namespace LookupAnythingMobileSearch
             {
                 try
                 {
-                    Monster fake = TryConstructSpecificMonsterType(name) ?? new Monster(name, Vector2.Zero);
-                    TryFixMonsterTexture(fake, name);
+                    // For SVE's custom monsters (which have no
+                    // Data/Monsters entry of their own - confirmed from
+                    // FarmTypeManager's spawn config), construct using
+                    // their confirmed vanilla base type instead, then
+                    // swap in the correct custom texture. Constructing by
+                    // the custom name directly always failed with "key
+                    // not present in the dictionary" since the game has
+                    // no stats data to look up for these at all.
+                    string constructName = SubjectWrapper.SveMonsterBaseType.TryGetValue(name, out string? baseType)
+                            ? baseType : name;
+                    Monster fake = TryConstructSpecificMonsterType(constructName) ?? new Monster(constructName, Vector2.Zero);
+                    if (baseType != null)
+                    {
+                        // This is a custom-sprite variant built on a
+                        // vanilla base - force-load its real texture
+                        // (registered under Characters/Monsters/{name
+                        // with spaces stripped}, confirmed from the
+                        // mod's own Content Patcher "Load" actions).
+                        try
+                        {
+                            // RSV's file naming convention prefixes "RSV"
+                            // (e.g. "RSVSerperial.png"), unlike SVE's
+                            // plain concatenated-name convention.
+                            bool isRsv = name is "Serperial" or "Viperial" or "Wraith" or "Corrupted Spirit" or "Beast 1" or "Beast 2" or "Beast 3";
+                            string assetKey = (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
+                            var tex = Game1.content.Load<Texture2D>($"Characters\\Monsters\\{assetKey}");
+                            if (tex != null && fake.Sprite != null)
+                                fake.Sprite = new AnimatedSprite($"Characters\\Monsters\\{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                        }
+                        catch (Exception texEx)
+                        {
+                            Monitor.Log($"Couldn't load custom texture for '{name}' (base '{baseType}'): {texEx.Message}", LogLevel.Trace);
+                        }
+                    }
+                    TryFixMonsterTexture(fake, constructName);
+                    if (baseType != null)
+                    {
+                        // Restore the real display/internal name - the
+                        // base-type construction above set it to the
+                        // vanilla name (e.g. "Royal Serpent"), which would
+                        // otherwise make this show up as vanilla instead
+                        // of correctly classified as its real SVE name.
+                        try { fake.Name = name; } catch { }
+                    }
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
                     // draws it. The detail page the player opens after

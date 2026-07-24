@@ -1095,7 +1095,8 @@ namespace LookupAnythingMobileSearch.UI
             {
                 b.End();
                 b.GraphicsDevice.ScissorRectangle = prevScissor;
-                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null,
+                        new RasterizerState { ScissorTestEnable = true });
             }
 
             // Scroll arrows - only meaningfully clickable/visible when
@@ -1215,7 +1216,8 @@ namespace LookupAnythingMobileSearch.UI
                     }
                     b.End();
                     b.GraphicsDevice.ScissorRectangle = prevScissor;
-                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                    b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null,
+                            new RasterizerState { ScissorTestEnable = true });
                 }
             }
 

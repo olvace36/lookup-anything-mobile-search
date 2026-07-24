@@ -501,8 +501,52 @@ namespace LookupAnythingMobileSearch.Framework
 
         // internal name itself has no prefix at all (Sword & Sorcery's
         // "Stygium ..." family, for example).
+        // Base vanilla monster type used to construct each SVE custom
+        // monster, confirmed directly from FarmTypeManager's own spawn
+        // config (content.json under "[FTM] Stardew Valley Expanded") -
+        // every one of these is really a vanilla monster instance with an
+        // overridden sprite/texture, never registered in Data/Monsters at
+        // all, which is why constructing them by name alone always
+        // failed ("key not present in the dictionary").
+        internal static readonly Dictionary<string, string> SveMonsterBaseType = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Apophis"] = "Royal Serpent",
+            ["Badlands Serpent"] = "Serpent",
+            ["Royal Badlands Serpent"] = "Royal Serpent",
+            ["Corrupt Serpent"] = "Serpent",
+            ["Corrupt Mummy"] = "Mummy",
+            ["Corrupt Spirit"] = "Carbon Ghost",
+            ["Fallen Adventurer"] = "Mummy",
+            ["Bully Rex"] = "Pepper Rex",
+            ["Poltergeist"] = "Pepper Rex",
+            ["Swamp Golem"] = "Wilderness Golem",
+            ["Swamp Lurk"] = "Lava Lurk",
+            ["Swamp Putrid Ghost"] = "Putrid Ghost",
+            ["Swamp Flower Crab"] = "Truffle Crab",
+            ["Toxic Bubble"] = "Ghost",
+            ["Legendary Purple Mushroom Crab"] = "Iridium Crab",
+            ["Legendary Sand Scorpion"] = "Iridium Golem",
+            ["Legendary Gold Slime"] = "Iridium Golem",
+            ["Sand Scorpion"] = "Wilderness Golem",
+            ["Copper Crab"] = "Rock Crab",
+            ["Gold Crab"] = "Rock Crab",
+            ["Iron Crab"] = "Rock Crab",
+            // RSV custom monsters - confirmed from wiki text reviewed
+            // earlier ("based on X" statements for each).
+            ["Serperial"] = "Royal Serpent",
+            ["Viperial"] = "Pepper Rex",
+            ["Wraith"] = "Putrid Ghost",
+            ["Corrupted Spirit"] = "Ghost",
+            ["Beast 1"] = "Shadow Brute", ["Beast 2"] = "Shadow Brute", ["Beast 3"] = "Shadow Brute",
+            // East Scarp custom monsters - confirmed from its own
+            // FarmTypeManager config ("East Scarp FTM/content.json").
+            ["ES Mine Bat"] = "Frost Bat",
+            ["ES Mine Bat Iridium"] = "Bat",
+        };
+
         internal static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
         {
+            ["ES Mine Bat"] = "East Scarp", ["ES Mine Bat Iridium"] = "East Scarp",
             ["Stygium Bat"] = "Sword & Sorcery", ["Stygium Crab"] = "Sword & Sorcery",
             ["Stygium Golem"] = "Sword & Sorcery", ["Stygium Golem (Blue)"] = "Sword & Sorcery",
             ["Stygium Head"] = "Sword & Sorcery", ["Stygium Leviathan"] = "Sword & Sorcery",
@@ -525,7 +569,6 @@ namespace LookupAnythingMobileSearch.Framework
             ["Corrupt Mummy"] = "Stardew Valley Expanded", ["Corrupt Serpent"] = "Stardew Valley Expanded",
             ["Corrupt Spirit"] = "Stardew Valley Expanded",
             ["Fallen Adventurer"] = "Stardew Valley Expanded",
-            ["Highlands Golem"] = "Stardew Valley Expanded", ["Highlands Sprite"] = "Stardew Valley Expanded",
             ["Bully Rex"] = "Stardew Valley Expanded", ["Poltergeist"] = "Stardew Valley Expanded",
             ["Sand Scorpion"] = "Stardew Valley Expanded", ["Swamp Golem"] = "Stardew Valley Expanded",
             ["Swamp Lurk"] = "Stardew Valley Expanded", ["Swamp Putrid Ghost"] = "Stardew Valley Expanded",
@@ -535,7 +578,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Iron Crab"] = "Stardew Valley Expanded", ["Royal Badlands Serpent"] = "Stardew Valley Expanded",
             ["Swamp Flower Crab"] = "Stardew Valley Expanded",
             // Ridgeside Village - confirmed from the official wiki's monster list
-            ["Serpentine Beast"] = "Ridgeside Village", ["Beast 1"] = "Ridgeside Village",
+            ["Beast 1"] = "Ridgeside Village",
             ["Beast 2"] = "Ridgeside Village", ["Beast 3"] = "Ridgeside Village",
             ["Serperial"] = "Ridgeside Village", ["Corrupted Spirit"] = "Ridgeside Village",
             ["Viperial"] = "Ridgeside Village", ["Wraith"] = "Ridgeside Village",
@@ -1065,6 +1108,41 @@ namespace LookupAnythingMobileSearch.Framework
         // GetDataForMonster only shows Health/Drops/Experience/Defense/
         // Attack - no behavior/strategy info at all, confirmed directly
         // from its own source code.
+        // Real HP/Damage confirmed from wiki text and FarmTypeManager's
+        // own spawn config - shown as an extra info field since these
+        // monsters are constructed from a vanilla base type (to work
+        // around having no Data/Monsters entry of their own), so the
+        // base game's own Health/Attack display shows the BASE type's
+        // stats, not these actual values.
+        internal static readonly Dictionary<string, string> MonsterRealStats = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Apophis"] = "20,000 HP, 120 damage (per source; wiki text separately cites 13,000 HP - exact figure may vary by version)",
+            ["Badlands Serpent"] = "150-320 HP, 25-35 damage",
+            ["Bully Rex"] = "13,000 HP",
+            ["Corrupt Mummy"] = "2,000 HP",
+            ["Corrupt Serpent"] = "1,300 HP",
+            ["Corrupt Spirit"] = "335 HP",
+            ["Fallen Adventurer"] = "400 HP",
+            ["Legendary Gold Slime"] = "10,000 HP",
+            ["Legendary Purple Mushroom Crab"] = "6,000 HP",
+            ["Legendary Sand Scorpion"] = "12,000 HP",
+            ["Poltergeist"] = "1,000 HP",
+            ["Sand Scorpion"] = "80 HP",
+            ["Swamp Golem"] = "220 HP",
+            ["Swamp Lurk"] = "230 HP",
+            ["Swamp Putrid Ghost"] = "750 HP",
+            ["Swamp Flower Crab"] = "90 HP, 25 damage",
+            ["Toxic Bubble"] = "180 HP",
+            ["Royal Badlands Serpent"] = "850 HP, 65 damage",
+            ["Beast 1"] = "400 HP",
+            ["Beast 2"] = "550 HP",
+            ["Beast 3"] = "700 HP",
+            ["Corrupted Spirit"] = "60 HP (100 HP in the Corrupted Spirit Realm)",
+            ["Serperial"] = "1,500 HP base, +50 HP per tail segment (3-18 segments)",
+            ["Viperial"] = "3,000 HP",
+            ["Wraith"] = "200 HP",
+        };
+
         internal static readonly Dictionary<string, string> MonsterCombatTips = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Copper Crab"] = "Disguises itself as a stationary copper ore node until approached or struck. Hit its shell with a pickaxe first to break its defense before attacking with a weapon.",
@@ -1076,7 +1154,9 @@ namespace LookupAnythingMobileSearch.Framework
             ["Viperial"] = "Pauses movement and breathes a continuous flame blast in one direction when attacking; can turn quickly if you circle to its side too fast. Best approached diagonally, then attack from the side it isn't firing from.",
             ["Wraith"] = "Flies through walls and periodically charges at increased speed. Can inflict a Nauseated debuff (blocks healing from food/drink for 2 minutes) - cure it by eating Ginger or drinking Ginger Ale.",
             ["Corrupted Spirit"] = "Flies straight at the player ignoring obstacles like rocks, cliffs, and water. Teleports to a random spot after landing a hit, then slowly floats back for another strike.",
-            ["Serpentine Beast"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
+            ["Beast 1"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
+            ["Beast 2"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
+            ["Beast 3"] = "Resists knockback and has no special attacks - simple to fight by backing away as it approaches.",
             ["Toxic Bubble"] = "A flying enemy that actively chases the player through the air.",
         };
 
