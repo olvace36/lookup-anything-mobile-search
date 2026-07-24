@@ -390,7 +390,8 @@ namespace LookupAnythingMobileSearch
             // monsters via custom code rather than registering them in
             // Data/Monsters at all, so GetMonsterNames() (which reads
             // Data/Monsters) never sees them.
-            names = names.Concat(SubjectWrapper.MonsterNameToModName.Keys).Distinct().ToList();
+            names = names.Concat(SubjectWrapper.MonsterNameToModName.Keys)
+                    .Concat(SubjectWrapper.SveMonsterBaseType.Keys).Distinct().ToList();
             foreach (string name in names)
             {
                 try

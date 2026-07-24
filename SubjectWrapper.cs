@@ -335,7 +335,7 @@ namespace LookupAnythingMobileSearch.Framework
 
         private static readonly HashSet<string> VanillaMonsters = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Green Slime", "Frost Jelly", "Sludge", "Tiger Slime", "Big Slime",
+            "Green Slime", "Sludge", "Frost Jelly", "Tiger Slime", "Big Slime",
             "Bat", "Frost Bat", "Lava Bat", "Iridium Bat", "Haunted Skull",
             "Bug", "Assassin Bug", "Armored Bug", "Duggy", "Magma Duggy",
             "Rock Crab", "Lava Crab", "Iridium Crab", "Stick Bug", "Grub",
@@ -346,7 +346,8 @@ namespace LookupAnythingMobileSearch.Framework
             "Mummy", "Serpent", "Royal Serpent", "Pepper Rex", "Spider",
             "Magma Sprite", "Magma Sparker", "Dwarvish Sentry", "False Magma Cap",
             "Hot Head", "Lava Lurk", "Shadow Guy", "Shadow Girl", "Truffle Crab",
-            "Spiker", "Crow", "Fireball", "Frog", "Angry Roger", "Cat", "Skeleton Warrior",
+            "Skeleton Warrior",
+            "Spiker", "Crow", "Fireball", "Frog", "Cat",
         };
 
         // Vanilla farm animal / critter species (not individual pet names -
@@ -542,6 +543,14 @@ namespace LookupAnythingMobileSearch.Framework
             ["Copper Crab"] = "Rock Crab",
             ["Gold Crab"] = "Rock Crab",
             ["Iron Crab"] = "Rock Crab",
+            // Legacy/unused vanilla monster names - not in Lookup
+            // Anything's own enumerated monster list, but likely recolor
+            // variants of a real base monster (same pattern as SVE's
+            // danger-zone reskins) rather than truly non-existent.
+            ["Sludge"] = "Green Slime",
+            ["Frost Jelly"] = "Green Slime",
+            ["Shadow Guy"] = "Shadow Brute",
+            ["Skeleton Warrior"] = "Skeleton",
             // RSV custom monsters - confirmed from wiki text reviewed
             // earlier ("based on X" statements for each).
             ["Serperial"] = "Royal Serpent",
