@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewValley.GameData;
 using StardewValley.Monsters;
 
 namespace LookupAnythingMobileSearch
@@ -237,8 +238,8 @@ namespace LookupAnythingMobileSearch
         // hardcoding fragile numeric IDs that can change between game
         // versions. Cached after first build since object data doesn't
         // change during a session.
-        private Dictionary<string, string>? _itemDisplayNameToIdCache;
-        private Dictionary<string, string>? _multiCategoryNameToIdCache;
+        private static Dictionary<string, string>? _itemDisplayNameToIdCache;
+        private static Dictionary<string, string>? _multiCategoryNameToIdCache;
 
         // (DataLoader method name, qualified-ID prefix) for each
         // additional item category beyond plain Objects - checked via
@@ -253,13 +254,13 @@ namespace LookupAnythingMobileSearch
             ("Weapons", "(W)"),
         };
 
-        private void BuildMultiCategoryCache()
+        private static void BuildMultiCategoryCache()
         {
             _multiCategoryNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             Type? dataLoaderType = typeof(Game1).Assembly.GetType("StardewValley.GameData.DataLoader");
             if (dataLoaderType == null)
             {
-                Monitor.Log("Couldn't resolve DataLoader type - only plain Objects will be searchable for drop icons.", LogLevel.Trace);
+                SMonitor?.Log("Couldn't resolve DataLoader type - only plain Objects will be searchable for drop icons.", LogLevel.Trace);
                 return;
             }
             foreach (var (methodName, prefix) in ExtraCategorySources)
@@ -301,19 +302,19 @@ namespace LookupAnythingMobileSearch
                 }
                 catch (Exception ex)
                 {
-                    Monitor.Log($"Couldn't load '{methodName}' category for drop icons: {ex.Message}", LogLevel.Trace);
+                    SMonitor?.Log($"Couldn't load '{methodName}' category for drop icons: {ex.Message}", LogLevel.Trace);
                 }
             }
         }
 
-        private string? ResolveItemIdByName(string itemName)
+        private static string? ResolveItemIdByName(string itemName)
         {
             try
             {
                 if (_itemNameToIdCache == null)
                 {
                     _itemNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kv in Game1.content.Load<Dictionary<string, StardewValley.GameData.ObjectData>>("Data\\Objects"))
+                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data\\Objects"))
                     {
                         string? dispName = kv.Value?.Name;
                         if (!string.IsNullOrEmpty(dispName) && !_itemNameToIdCache.ContainsKey(dispName))
@@ -331,7 +332,7 @@ namespace LookupAnythingMobileSearch
                 if (_itemDisplayNameToIdCache == null)
                 {
                     _itemDisplayNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kv in Game1.content.Load<Dictionary<string, StardewValley.GameData.ObjectData>>("Data\\Objects"))
+                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data\\Objects"))
                     {
                         try
                         {
@@ -356,7 +357,7 @@ namespace LookupAnythingMobileSearch
             }
             catch (Exception ex)
             {
-                Monitor.Log($"Couldn't resolve item ID for '{itemName}': {ex.Message}", LogLevel.Trace);
+                SMonitor?.Log($"Couldn't resolve item ID for '{itemName}': {ex.Message}", LogLevel.Trace);
                 return null;
             }
         }
@@ -532,7 +533,7 @@ namespace LookupAnythingMobileSearch
                                 string? itemId = ResolveItemIdByName(itemName);
                                 if (itemId == null)
                                 {
-                                    Monitor.Log($"Couldn't resolve item ID for drop '{itemName}' on '{wrapped.InternalName}' - skipped from clickable list.", LogLevel.Trace);
+                                    SMonitor?.Log($"Couldn't resolve item ID for drop '{itemName}' on '{wrapped.InternalName}' - skipped from clickable list.", LogLevel.Trace);
                                     continue;
                                 }
                                 object dropData = Activator.CreateInstance(_itemDropDataType,
@@ -552,7 +553,7 @@ namespace LookupAnythingMobileSearch
                     }
                     catch (Exception ex)
                     {
-                        Monitor.Log($"Couldn't build clickable drop list for '{wrapped.InternalName}': {ex.Message}", LogLevel.Trace);
+                        SMonitor?.Log($"Couldn't build clickable drop list for '{wrapped.InternalName}': {ex.Message}", LogLevel.Trace);
                     }
                 }
 
