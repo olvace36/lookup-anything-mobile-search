@@ -35,6 +35,7 @@ namespace LookupAnythingMobileSearch
         private bool _awaitingDetailReturn;
         private PersistenceManager? _persistence;
         internal static IMonitor? SMonitor;
+        internal static ITranslationHelper? STranslation;
         internal static ITranslationHelper I18n = null!;
 
         // ชื่อ class ของ SearchMenu จริงๆ ใน Lookup Anything
@@ -45,6 +46,7 @@ namespace LookupAnythingMobileSearch
         public override void Entry(IModHelper helper)
         {
             SMonitor = Monitor;
+            STranslation = Helper.Translation;
             I18n = helper.Translation;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
         }
@@ -230,6 +232,135 @@ namespace LookupAnythingMobileSearch
         // Monster class as before) for anything this can't resolve -
         // typically modded monster types with their own custom class name
         // that doesn't follow this convention.
+        // Resolves a plain item name (e.g. "Void Essence") to its current
+        // item ID by searching the game's own object data - avoids
+        // hardcoding fragile numeric IDs that can change between game
+        // versions. Cached after first build since object data doesn't
+        // change during a session.
+        private Dictionary<string, string>? _itemDisplayNameToIdCache;
+        private Dictionary<string, string>? _multiCategoryNameToIdCache;
+
+        // (DataLoader method name, qualified-ID prefix) for each
+        // additional item category beyond plain Objects - checked via
+        // reflection so a category that doesn't exist in a given game
+        // version just gets skipped instead of breaking the others.
+        private static readonly (string method, string prefix)[] ExtraCategorySources =
+        {
+            ("Furniture", "(F)"),
+            ("Clothing", "(CL)"),
+            ("Hats", "(H)"),
+            ("Boots", "(B)"),
+            ("Weapons", "(W)"),
+        };
+
+        private void BuildMultiCategoryCache()
+        {
+            _multiCategoryNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Type? dataLoaderType = typeof(Game1).Assembly.GetType("StardewValley.GameData.DataLoader");
+            if (dataLoaderType == null)
+            {
+                Monitor.Log("Couldn't resolve DataLoader type - only plain Objects will be searchable for drop icons.", LogLevel.Trace);
+                return;
+            }
+            foreach (var (methodName, prefix) in ExtraCategorySources)
+            {
+                try
+                {
+                    var method = dataLoaderType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+                    if (method == null) continue;
+                    object? dict = method.Invoke(null, new object?[] { Game1.content });
+                    if (dict is System.Collections.IDictionary idict)
+                    {
+                        foreach (System.Collections.DictionaryEntry entry in idict)
+                        {
+                            string key = entry.Key?.ToString() ?? "";
+                            var nameProp = entry.Value?.GetType().GetField("Name") as MemberInfo
+                                    ?? entry.Value?.GetType().GetProperty("Name");
+                            string? name = nameProp switch
+                            {
+                                FieldInfo fi => fi.GetValue(entry.Value) as string,
+                                PropertyInfo pi => pi.GetValue(entry.Value) as string,
+                                _ => null
+                            };
+                            string qualified = prefix + key;
+                            if (!string.IsNullOrEmpty(name) && !_multiCategoryNameToIdCache.ContainsKey(name))
+                                _multiCategoryNameToIdCache[name] = qualified;
+
+                            // Also index by resolved DisplayName, same
+                            // reasoning as the Object-category fallback.
+                            try
+                            {
+                                var item = ItemRegistry.Create(qualified, 1, 0, false);
+                                string? disp = item?.DisplayName;
+                                if (!string.IsNullOrEmpty(disp) && !_multiCategoryNameToIdCache.ContainsKey(disp))
+                                    _multiCategoryNameToIdCache[disp] = qualified;
+                            }
+                            catch { /* skip items that fail to construct */ }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Couldn't load '{methodName}' category for drop icons: {ex.Message}", LogLevel.Trace);
+                }
+            }
+        }
+
+        private string? ResolveItemIdByName(string itemName)
+        {
+            try
+            {
+                if (_itemNameToIdCache == null)
+                {
+                    _itemNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kv in Game1.content.Load<Dictionary<string, StardewValley.GameData.ObjectData>>("Data\\Objects"))
+                    {
+                        string? dispName = kv.Value?.Name;
+                        if (!string.IsNullOrEmpty(dispName) && !_itemNameToIdCache.ContainsKey(dispName))
+                            _itemNameToIdCache[dispName] = kv.Key;
+                    }
+                }
+                if (_itemNameToIdCache.TryGetValue(itemName, out string? id))
+                    return "(O)" + id;
+
+                // Fallback: many mod items only match by their resolved
+                // (localized) DisplayName, not the internal Name field -
+                // e.g. SVE/RSV items are often registered with a
+                // no-space or prefixed internal Name. Build this second,
+                // more expensive cache lazily only once it's needed.
+                if (_itemDisplayNameToIdCache == null)
+                {
+                    _itemDisplayNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kv in Game1.content.Load<Dictionary<string, StardewValley.GameData.ObjectData>>("Data\\Objects"))
+                    {
+                        try
+                        {
+                            var item = ItemRegistry.Create("(O)" + kv.Key, 1, 0, false);
+                            string? disp = item?.DisplayName;
+                            if (!string.IsNullOrEmpty(disp) && !_itemDisplayNameToIdCache.ContainsKey(disp))
+                                _itemDisplayNameToIdCache[disp] = kv.Key;
+                        }
+                        catch { /* skip items that fail to construct */ }
+                    }
+                }
+                if (_itemDisplayNameToIdCache.TryGetValue(itemName, out string? id2))
+                    return "(O)" + id2;
+
+                // Last resort: search other item categories (Furniture,
+                // Clothing, Hats, Boots, Weapons) via DataLoader, for
+                // drops that aren't plain Objects (e.g. clothing/mannequin
+                // monster loot).
+                if (_multiCategoryNameToIdCache == null)
+                    BuildMultiCategoryCache();
+                return _multiCategoryNameToIdCache!.TryGetValue(itemName, out string? id3) ? id3 : null;
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"Couldn't resolve item ID for '{itemName}': {ex.Message}", LogLevel.Trace);
+                return null;
+            }
+        }
+
         private Monster? TryConstructSpecificMonsterType(string name)
         {
             string className = string.Concat(name.Where(c => !char.IsWhiteSpace(c) && c != '\'' && c != '.'));
@@ -286,6 +417,9 @@ namespace LookupAnythingMobileSearch
 
         private static bool _variantPatchApplied;
         private static Type? _genericFieldType;
+        private static Type? _itemDropListFieldType;
+        private static Type? _itemDropDataType;
+        private static Dictionary<string, string>? _itemNameToIdCache;
         private static Type? _iCustomFieldType;
 
         // Patches the subject's own GetData method (same technique already
@@ -306,6 +440,12 @@ namespace LookupAnythingMobileSearch
                 const string ns = "Pathoschild.Stardew.LookupAnything.Framework";
                 _genericFieldType = asm.GetType($"{ns}.Fields.GenericField");
                 _iCustomFieldType = asm.GetType($"{ns}.Fields.ICustomField");
+                _itemDropListFieldType = asm.GetType($"{ns}.Fields.ItemDropListField");
+                _itemDropDataType = asm.GetType($"{ns}.Data.ItemDropData");
+                if (_itemDropListFieldType == null || _itemDropDataType == null)
+                {
+                    Monitor.Log("Couldn't resolve ItemDropListField/ItemDropData types - drop lists will stay as plain text.", LogLevel.Trace);
+                }
                 if (_genericFieldType == null || _iCustomFieldType == null)
                 {
                     Monitor.Log("Couldn't resolve field types for variant info patch.", LogLevel.Trace);
@@ -345,16 +485,80 @@ namespace LookupAnythingMobileSearch
                 }
 
                 var wrapped = SubjectWrapper.Create(__instance);
-                if (wrapped != null && SubjectWrapper.MonsterRealStats.TryGetValue(wrapped.InternalName, out string? realStats))
+                bool isThaiLang = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.th;
+
+                if (wrapped != null)
                 {
-                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
-                            new object?[] { "Actual stats (per wiki/mod data)", realStats, null })!);
+                    var realStatsDict = isThaiLang ? SubjectWrapper.MonsterRealStatsTH : SubjectWrapper.MonsterRealStats;
+                    if (!realStatsDict.TryGetValue(wrapped.InternalName, out string? realStats) && isThaiLang)
+                        SubjectWrapper.MonsterRealStats.TryGetValue(wrapped.InternalName, out realStats); // fall back to English if no Thai entry exists yet
+                    if (realStats != null)
+                    {
+                        string label = STranslation?.Get("field.actual-stats").Default("Actual stats (per wiki/mod data)") ?? "Actual stats (per wiki/mod data)";
+                        extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                                new object?[] { label, realStats, null })!);
+                    }
                 }
 
-                if (wrapped != null && SubjectWrapper.MonsterCombatTips.TryGetValue(wrapped.InternalName, out string? tip))
+                if (wrapped != null)
                 {
-                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
-                            new object?[] { "Combat tips", tip, null })!);
+                    var tipsDict = isThaiLang ? SubjectWrapper.MonsterCombatTipsTH : SubjectWrapper.MonsterCombatTips;
+                    if (!tipsDict.TryGetValue(wrapped.InternalName, out string? tip) && isThaiLang)
+                        SubjectWrapper.MonsterCombatTips.TryGetValue(wrapped.InternalName, out tip); // fall back to English if no Thai entry exists yet
+                    if (tip != null)
+                    {
+                        string label = STranslation?.Get("field.combat-tips").Default("Combat tips") ?? "Combat tips";
+                        extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                                new object?[] { label, tip, null })!);
+                    }
+                }
+
+                if (wrapped != null && _itemDropListFieldType != null && _itemDropDataType != null
+                        && SubjectWrapper.MonsterStructuredDrops.TryGetValue(wrapped.InternalName, out var dropList))
+                {
+                    try
+                    {
+                        // Extract GameHelper (protected property, inherited
+                        // from BaseSubject) and Codex (private field on
+                        // CharacterSubject) via reflection - confirmed from
+                        // the mod's own source that these are exactly what
+                        // ItemDropListField's constructor needs.
+                        object? gameHelper = __instance.GetType().GetProperty("GameHelper",
+                                BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public)?.GetValue(__instance);
+                        object? codex = __instance.GetType().GetField("Codex",
+                                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(__instance);
+
+                        if (gameHelper != null && codex != null)
+                        {
+                            Array dropsArray = Array.CreateInstance(_itemDropDataType, dropList.Count);
+                            int written = 0;
+                            foreach (var (itemName, min, max, chance) in dropList)
+                            {
+                                string? itemId = ResolveItemIdByName(itemName);
+                                if (itemId == null)
+                                {
+                                    Monitor.Log($"Couldn't resolve item ID for drop '{itemName}' on '{wrapped.InternalName}' - skipped from clickable list.", LogLevel.Trace);
+                                    continue;
+                                }
+                                object dropData = Activator.CreateInstance(_itemDropDataType,
+                                        new object?[] { itemId, min, max, chance, null })!;
+                                dropsArray.SetValue(dropData, written++);
+                            }
+                            if (written > 0)
+                            {
+                                Array trimmed = Array.CreateInstance(_itemDropDataType, written);
+                                Array.Copy(dropsArray, trimmed, written);
+                                string dropsLabel = "Drops";
+                                object field = Activator.CreateInstance(_itemDropListFieldType,
+                                        new object?[] { gameHelper, codex, dropsLabel, trimmed, true, false, false, null, null })!;
+                                extraFields.Add(field);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Monitor.Log($"Couldn't build clickable drop list for '{wrapped.InternalName}': {ex.Message}", LogLevel.Trace);
+                    }
                 }
 
                 if (extraFields.Count == 0) return;
@@ -447,6 +651,33 @@ namespace LookupAnythingMobileSearch
                         // otherwise make this show up as vanilla instead
                         // of correctly classified as its real SVE name.
                         try { fake.Name = name; } catch { }
+
+                        // Override the actual stat fields with confirmed
+                        // real numbers where we have them, so Lookup
+                        // Anything's own native HP/Damage display is
+                        // correct instead of showing the base type's.
+                        if (SubjectWrapper.MonsterRealNumericStats.TryGetValue(name, out var realNums))
+                        {
+                            try { fake.MaxHealth = realNums.hp; fake.Health = realNums.hp; } catch { }
+                            if (realNums.dmg > 0)
+                            {
+                                try { fake.DamageToFarmer = realNums.dmg; } catch { }
+                            }
+                            if (realNums.def >= 0)
+                            {
+                                try
+                                {
+                                    var resilienceField = fake.GetType().GetField("resilience", BindingFlags.NonPublic | BindingFlags.Instance)
+                                            ?? typeof(Monster).GetField("resilience", BindingFlags.NonPublic | BindingFlags.Instance);
+                                    object? netInt = resilienceField?.GetValue(fake);
+                                    netInt?.GetType().GetProperty("Value")?.SetValue(netInt, realNums.def);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Monitor.Log($"Couldn't override resilience/Defense for '{name}': {ex.Message}", LogLevel.Trace);
+                                }
+                            }
+                        }
                     }
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
