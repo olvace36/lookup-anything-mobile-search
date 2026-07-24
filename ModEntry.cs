@@ -11,6 +11,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.GameData;
+using StardewValley.GameData.Objects;
 using StardewValley.Monsters;
 
 namespace LookupAnythingMobileSearch
@@ -314,7 +315,7 @@ namespace LookupAnythingMobileSearch
                 if (_itemNameToIdCache == null)
                 {
                     _itemNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data\\Objects"))
+                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data/Objects"))
                     {
                         string? dispName = kv.Value?.Name;
                         if (!string.IsNullOrEmpty(dispName) && !_itemNameToIdCache.ContainsKey(dispName))
@@ -332,7 +333,7 @@ namespace LookupAnythingMobileSearch
                 if (_itemDisplayNameToIdCache == null)
                 {
                     _itemDisplayNameToIdCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data\\Objects"))
+                    foreach (var kv in Game1.content.Load<Dictionary<string, ObjectData>>("Data/Objects"))
                     {
                         try
                         {
