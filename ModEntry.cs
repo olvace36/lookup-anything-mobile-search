@@ -553,6 +553,34 @@ namespace LookupAnythingMobileSearch
                     }
                 }
             }
+
+            // SnS "temporary actor" Stygium sprites - confirmed from the
+            // mod's own TemporaryActors.json to reuse the same monster
+            // art but registered as event/cutscene-only actors, with NO
+            // CharacterData entry at all (unlike JunimoJade, which had
+            // hidden-but-real CharacterData). TryConstructNpcDynamically
+            // relies on reading CharacterData, so it won't work here -
+            // build a bare-minimum NPC directly instead and force its
+            // sprite/portrait from the confirmed Characters\{name} path.
+            string[] sansTempActorNames = { "StygiumLurk", "StygiumSentry", "Stygium_Duggy",
+                    "StygiumGolem_Purple", "StygiumMushroom", "StygiumMushroom_Duggy", "StygiumSkeleton_Rare" };
+            foreach (string rawName in sansTempActorNames)
+            {
+                try
+                {
+                    Texture2D? portraitTex = null;
+                    try { portraitTex = Game1.content.Load<Texture2D>($"Portraits\\{rawName}"); } catch { /* no portrait - fine, pass null */ }
+                    var npc = new NPC(new AnimatedSprite($"Characters\\{rawName}", 0, 16, 32),
+                            Vector2.Zero * 64f, "Custom_DeepDark", 2, rawName, false, portraitTex);
+                    try { npc.displayName = rawName.Replace("Stygium", "Stygium ").Replace("_", " ").Trim(); } catch { }
+                    object? subject = _bridge!.GetSubjectFor(npc);
+                    if (subject != null) result.Add(subject);
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Skipped SnS temp-actor '{rawName}': {ex.Message}", LogLevel.Trace);
+                }
+            }
             catch (Exception ex)
             {
                 Monitor.Log("Error loading Data/Characters for the full NPC list: " + ex.Message, LogLevel.Warn);

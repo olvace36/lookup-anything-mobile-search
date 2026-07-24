@@ -149,6 +149,13 @@ namespace LookupAnythingMobileSearch.Framework
                 VariantOfInternalName = variant.RealInternalName;
                 IconTextureOverride = variant.Icon;
                 IconCropOverride = variant.IconCrop;
+                // IsFromMod()/ModGroupLabel() check InternalName against
+                // VanillaMonsters/MonsterNameToModName - without this
+                // override, InternalName stayed as the real underlying
+                // name (e.g. "Bat"), which IS in VanillaMonsters, so
+                // every variant entry was silently misclassified as
+                // Vanilla instead of its own mod.
+                if (variant.DisplayName != null) InternalName = variant.DisplayName;
             }
         }
 
@@ -420,6 +427,10 @@ namespace LookupAnythingMobileSearch.Framework
         private static readonly Dictionary<string, string> NpcNameToModName = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Mateo"] = "Sword & Sorcery", ["Hector"] = "Sword & Sorcery",
+            ["StygiumLurk"] = "Sword & Sorcery", ["StygiumSentry"] = "Sword & Sorcery",
+            ["Stygium_Duggy"] = "Sword & Sorcery", ["StygiumGolem_Purple"] = "Sword & Sorcery",
+            ["StygiumMushroom"] = "Sword & Sorcery", ["StygiumMushroom_Duggy"] = "Sword & Sorcery",
+            ["StygiumSkeleton_Rare"] = "Sword & Sorcery",
             ["Cirrus"] = "Sword & Sorcery", ["Roslin"] = "Sword & Sorcery",
             ["Solomon"] = "Sword & Sorcery", ["Dandelion"] = "Sword & Sorcery",
             ["Silly"] = "Adventurer's Guild Expanded", ["Gabriel"] = "Adventurer's Guild Expanded",
@@ -547,6 +558,18 @@ namespace LookupAnythingMobileSearch.Framework
         internal static readonly Dictionary<string, string> MonsterNameToModName = new(StringComparer.OrdinalIgnoreCase)
         {
             ["ES Mine Bat"] = "East Scarp", ["ES Mine Bat Iridium"] = "East Scarp",
+            // SVE danger-zone reskin variants (InternalName now correctly
+            // resolves to these display names via the variant registry
+            // fix, so they need their own mod-classification entry too).
+            ["Wilderness Golem Spring"] = "Stardew Valley Expanded", ["Wilderness Golem Summer"] = "Stardew Valley Expanded",
+            ["Wilderness Golem Fall"] = "Stardew Valley Expanded", ["Wilderness Golem Winter"] = "Stardew Valley Expanded",
+            ["Evil Mummy"] = "Stardew Valley Expanded",
+            ["Corrupt Bat"] = "Stardew Valley Expanded", ["Evil Bat"] = "Stardew Valley Expanded", ["Dangerous Bat"] = "Stardew Valley Expanded",
+            ["Skeleton Dangerous"] = "Stardew Valley Expanded", ["Skeleton Mage Dangerous"] = "Stardew Valley Expanded",
+            ["Shadow Brute Dangerous"] = "Stardew Valley Expanded", ["Shadow Shaman Dangerous"] = "Stardew Valley Expanded",
+            ["Stone Golem Dangerous"] = "Stardew Valley Expanded", ["Dangerous Metal Head"] = "Stardew Valley Expanded",
+            ["Dust Spirit Dangerous"] = "Stardew Valley Expanded", ["Green Dust Spirit Dangerous"] = "Stardew Valley Expanded",
+            ["White Dust Spirit Dangerous"] = "Stardew Valley Expanded",
             ["Stygium Bat"] = "Sword & Sorcery", ["Stygium Crab"] = "Sword & Sorcery",
             ["Stygium Golem"] = "Sword & Sorcery", ["Stygium Golem (Blue)"] = "Sword & Sorcery",
             ["Stygium Head"] = "Sword & Sorcery", ["Stygium Leviathan"] = "Sword & Sorcery",
@@ -555,11 +578,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Stygium Serpent"] = "Sword & Sorcery", ["Stygium Skeleton"] = "Sword & Sorcery",
             ["Stygium Skull"] = "Sword & Sorcery", ["Stygium Squid"] = "Sword & Sorcery",
             ["Stygium False Mushroom"] = "Sword & Sorcery", ["Duskspire Remnant"] = "Sword & Sorcery",
-            ["Stygium Lurk"] = "Sword & Sorcery", ["Stygium Sentry"] = "Sword & Sorcery",
-            ["Stygium Duggy"] = "Sword & Sorcery", ["Stygium Golem (Purple)"] = "Sword & Sorcery",
-            ["Stygium Mushroom"] = "Sword & Sorcery", ["Stygium Mushroom Duggy"] = "Sword & Sorcery",
             ["Stygium Droplet"] = "Sword & Sorcery",
-            ["Stygium Skeleton (Rare)"] = "Sword & Sorcery",
             ["Duskspire Behemoth"] = "Sword & Sorcery",
             // Stardew Valley Expanded - confirmed from the official wiki
             // (SVE adds only 6-8 new monster species total; several names
