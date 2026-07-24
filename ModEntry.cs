@@ -391,7 +391,13 @@ namespace LookupAnythingMobileSearch
             // Data/Monsters at all, so GetMonsterNames() (which reads
             // Data/Monsters) never sees them.
             names = names.Concat(SubjectWrapper.MonsterNameToModName.Keys)
-                    .Concat(SubjectWrapper.SveMonsterBaseType.Keys).Distinct().ToList();
+                    .Concat(SubjectWrapper.SveMonsterBaseType.Keys)
+                    // Confirmed real, current vanilla monsters that
+                    // Lookup Anything's own GetMonsterNames() never
+                    // returns for some reason - attempted directly here
+                    // instead of relying solely on its enumeration.
+                    .Concat(new[] { "Armored Bug", "Assassin Bug", "Haunted Skull", "Mutant Fly", "Mutant Grub", "Shadow Girl", "Stick Bug" })
+                    .Distinct().ToList();
             foreach (string name in names)
             {
                 try
