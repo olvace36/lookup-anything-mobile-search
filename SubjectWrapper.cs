@@ -1390,6 +1390,30 @@ namespace LookupAnythingMobileSearch.Framework
         // Maps color-variant monster name -> i18n key for its
         // spawn-condition description. Text lives in i18n/default.json
         // and i18n/th.json (keys "monster.variant-condition.<slug>").
+        // Maps color-variant monster name -> i18n key for its
+        // stat-comparison text. Text lives in i18n JSON (keys
+        // "monster.variant-stats.<slug>").
+        internal static readonly Dictionary<string, string> MonsterVariantStatsI18nKeys = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Corrupt Bat"] = "monster.variant-stats.corrupt-bat",
+            ["Evil Bat"] = "monster.variant-stats.evil-bat",
+            ["Dangerous Bat"] = "monster.variant-stats.dangerous-bat",
+            ["Evil Mummy"] = "monster.variant-stats.evil-mummy",
+            ["Skeleton Dangerous"] = "monster.variant-stats.skeleton-dangerous",
+            ["Skeleton Mage Dangerous"] = "monster.variant-stats.skeleton-mage-dangerous",
+            ["Shadow Brute Dangerous"] = "monster.variant-stats.shadow-brute-dangerous",
+            ["Shadow Shaman Dangerous"] = "monster.variant-stats.shadow-shaman-dangerous",
+            ["Stone Golem Dangerous"] = "monster.variant-stats.stone-golem-dangerous",
+            ["Dangerous Metal Head"] = "monster.variant-stats.dangerous-metal-head",
+            ["Dust Spirit Dangerous"] = "monster.variant-stats.dust-spirit-dangerous",
+            ["Green Dust Spirit Dangerous"] = "monster.variant-stats.green-dust-spirit-dangerous",
+            ["White Dust Spirit Dangerous"] = "monster.variant-stats.white-dust-spirit-dangerous",
+            ["Wilderness Golem Spring"] = "monster.variant-stats.wilderness-golem-spring",
+            ["Wilderness Golem Summer"] = "monster.variant-stats.wilderness-golem-summer",
+            ["Wilderness Golem Fall"] = "monster.variant-stats.wilderness-golem-fall",
+            ["Wilderness Golem Winter"] = "monster.variant-stats.wilderness-golem-winter",
+        };
+
         internal static readonly Dictionary<string, string> MonsterVariantConditionI18nKeys = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Corrupt Bat"] = "monster.variant-condition.corrupt-bat",

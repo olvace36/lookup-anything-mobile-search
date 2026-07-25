@@ -499,6 +499,17 @@ namespace LookupAnythingMobileSearch
                     }
                 }
 
+                if (wrapped != null && SubjectWrapper.MonsterVariantStatsI18nKeys.TryGetValue(wrapped.InternalName, out string? variantStatsKey) && STranslation != null)
+                {
+                    string variantStats = STranslation.Get(variantStatsKey).Default("");
+                    if (!string.IsNullOrEmpty(variantStats))
+                    {
+                        string label = STranslation.Get("field.actual-stats").Default("Actual stats (per wiki/mod data)");
+                        extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                                new object?[] { label, variantStats, null })!);
+                    }
+                }
+
                 if (wrapped != null && SubjectWrapper.MonsterTipsI18nKeys.TryGetValue(wrapped.InternalName, out string? tipsKey) && STranslation != null)
                 {
                     string tip = STranslation.Get(tipsKey).Default("");
