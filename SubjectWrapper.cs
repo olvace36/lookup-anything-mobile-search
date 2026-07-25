@@ -1387,21 +1387,24 @@ namespace LookupAnythingMobileSearch.Framework
             ["Toxic Bubble (Weak Variant)"] = "monster.tips.toxic-bubble-weak-variant",
         };
 
-        internal static readonly Dictionary<string, string> MonsterVariantSpawnConditions = new(StringComparer.OrdinalIgnoreCase)
+        // Maps color-variant monster name -> i18n key for its
+        // spawn-condition description. Text lives in i18n/default.json
+        // and i18n/th.json (keys "monster.variant-condition.<slug>").
+        internal static readonly Dictionary<string, string> MonsterVariantConditionI18nKeys = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Corrupt Bat"] = "A recolored appearance of Bat in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
-            ["Evil Bat"] = "A recolored appearance of Bat in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
-            ["Dangerous Bat"] = "A recolored appearance of Bat used in \"Danger in the Deep\" / danger-mode mine runs.",
-            ["Evil Mummy"] = "A recolored appearance of Mummy in Stardew Valley Expanded's higher-difficulty areas (exact spawn location not yet confirmed).",
-            ["Skeleton Dangerous"] = "A recolored appearance of Skeleton used in danger-mode mine runs.",
-            ["Skeleton Mage Dangerous"] = "A recolored appearance of Skeleton Mage used in danger-mode mine runs.",
-            ["Shadow Brute Dangerous"] = "A recolored appearance of Shadow Brute used in danger-mode mine runs.",
-            ["Shadow Shaman Dangerous"] = "A recolored appearance of Shadow Shaman used in danger-mode mine runs.",
-            ["Stone Golem Dangerous"] = "A recolored appearance of Stone Golem used in danger-mode mine runs.",
-            ["Dangerous Metal Head"] = "A recolored appearance of Metal Head used in danger-mode mine runs.",
-            ["Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
-            ["Green Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
-            ["White Dust Spirit Dangerous"] = "A recolored appearance of Dust Spirit in Stardew Valley Expanded's higher-difficulty areas.",
+            ["Corrupt Bat"] = "monster.variant-condition.corrupt-bat",
+            ["Evil Bat"] = "monster.variant-condition.evil-bat",
+            ["Dangerous Bat"] = "monster.variant-condition.dangerous-bat",
+            ["Evil Mummy"] = "monster.variant-condition.evil-mummy",
+            ["Skeleton Dangerous"] = "monster.variant-condition.skeleton-dangerous",
+            ["Skeleton Mage Dangerous"] = "monster.variant-condition.skeleton-mage-dangerous",
+            ["Shadow Brute Dangerous"] = "monster.variant-condition.shadow-brute-dangerous",
+            ["Shadow Shaman Dangerous"] = "monster.variant-condition.shadow-shaman-dangerous",
+            ["Stone Golem Dangerous"] = "monster.variant-condition.stone-golem-dangerous",
+            ["Dangerous Metal Head"] = "monster.variant-condition.dangerous-metal-head",
+            ["Dust Spirit Dangerous"] = "monster.variant-condition.dust-spirit-dangerous",
+            ["Green Dust Spirit Dangerous"] = "monster.variant-condition.green-dust-spirit-dangerous",
+            ["White Dust Spirit Dangerous"] = "monster.variant-condition.white-dust-spirit-dangerous",
         };
 
         private static readonly Dictionary<string, string> CharacterAssetNameOverrides = new(StringComparer.OrdinalIgnoreCase)

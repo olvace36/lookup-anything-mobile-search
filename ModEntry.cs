@@ -648,6 +648,22 @@ namespace LookupAnythingMobileSearch
                         // otherwise make this show up as vanilla instead
                         // of correctly classified as its real SVE name.
                         try { fake.Name = name; } catch { }
+                        try
+                        {
+                            // Lookup Anything's title/list display uses
+                            // Character.getName(), which returns the
+                            // separately-cached displayName property
+                            // rather than re-deriving from .Name -
+                            // confirmed as a public property directly
+                            // from the game's own DLL (get_displayName/
+                            // set_displayName both exist), so it can be
+                            // set directly without reflection.
+                            fake.displayName = name;
+                        }
+                        catch (Exception ex)
+                        {
+                            Monitor.Log($"Couldn't override displayName for '{name}': {ex.Message}", LogLevel.Trace);
+                        }
 
                         // Override the actual stat fields with confirmed
                         // real numbers where we have them, so Lookup
@@ -726,7 +742,12 @@ namespace LookupAnythingMobileSearch
                         Monitor.Log($"Couldn't load variant texture for '{variantName}' (tried '{assetKey}'): {texEx.Message}", LogLevel.Trace);
                     }
 
-                    SubjectWrapper.MonsterVariantSpawnConditions.TryGetValue(variantName, out string? condition);
+                    string? condition = null;
+                    if (SubjectWrapper.MonsterVariantConditionI18nKeys.TryGetValue(variantName, out string? conditionKey) && STranslation != null)
+                    {
+                        string resolved = STranslation.Get(conditionKey).Default("");
+                        if (!string.IsNullOrEmpty(resolved)) condition = resolved;
+                    }
                     SubjectWrapper.RegisterVariant(variantSubject, variantName, realName, variantTex, null, condition);
                     result.Add(variantSubject);
                 }
