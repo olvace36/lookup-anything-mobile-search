@@ -562,10 +562,10 @@ namespace LookupAnythingMobileSearch.Framework
             ["Legendary Gold Slime"] = new() {
                 ("Gold Slime Egg", 1, 1, 1f), ("Green Slime Egg", 1, 1, 1f), ("Blue Slime Egg", 1, 1, 1f),
                 ("Red Slime Egg", 1, 1, 1f), ("Purple Slime Egg", 1, 1, 1f), ("Tiger Slime Egg", 1, 1, 1f),
-                ("Gold Carrot Seed", 1, 1, 1f),
+                ("Gold Carrot Seeds", 1, 1, 1f),
             },
             ["Legendary Sand Scorpion"] = new() {
-                ("Galdoran Gem", 1, 1, 1f), ("Magic Lamp", 1, 1, 1f), ("Ornate Treasure Chest", 1, 1, 1f), ("Gold Carrot Seed", 1, 1, 1f),
+                ("Galdoran Gem", 1, 1, 1f), ("Magic Lamp", 1, 1, 1f), ("Ornate Treasure Chest", 1, 1, 1f), ("Gold Carrot Seeds", 1, 1, 1f),
             },
             ["Copper Crab"] = new() { ("Copper Ore", 1, 1, 1f), ("Copper Bar", 1, 1, 1f), ("Cherry Bomb", 1, 1, 0.4f) },
             ["Gold Crab"] = new() { ("Gold Ore", 1, 1, 1f), ("Gold Bar", 1, 1, 1f), ("Mega Bomb", 1, 1, 0.4f) },
@@ -629,7 +629,7 @@ namespace LookupAnythingMobileSearch.Framework
             },
             ["Legendary Purple Mushroom Crab"] = new() {
                 ("Mega Purple Mushroom", 1, 1, 1f), ("Purple Mushroom", 8, 8, 1f),
-                ("Mushroom Tree Seed", 1, 1, 1f), ("Life Elixir", 3, 3, 1f), ("Gold Carrot Seed", 1, 1, 1f),
+                ("Mushroom Tree Seed", 1, 1, 1f), ("Life Elixir", 3, 3, 1f), ("Gold Carrot Seeds", 1, 1, 1f),
             },
             ["Corrupted Spirit"] = new() { ("Spiritual Essence", 1, 1, 1f) },
         };

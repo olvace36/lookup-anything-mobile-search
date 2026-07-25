@@ -731,6 +731,14 @@ namespace LookupAnythingMobileSearch
                     Monster variantFake = TryConstructSpecificMonsterType(realName) ?? new Monster(realName, Vector2.Zero);
                     TryFixMonsterTexture(variantFake, realName);
                     try { variantFake.Sprite.CurrentFrame = 0; } catch { }
+                    // Restore the variant's own name - constructing from
+                    // realName (e.g. "Bat") leaves .Name/.displayName as
+                    // that base name, which would otherwise make the
+                    // detail page show "Bat" instead of "Corrupt Bat"
+                    // even though the search list (via SubjectWrapper's
+                    // own name override) already showed it correctly.
+                    try { variantFake.Name = variantName; } catch { }
+                    try { variantFake.displayName = variantName; } catch { }
                     object? variantSubject = _bridge!.GetSubjectFor(variantFake);
                     if (variantSubject == null) continue;
 
