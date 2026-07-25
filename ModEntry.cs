@@ -308,6 +308,39 @@ namespace LookupAnythingMobileSearch
             }
         }
 
+        // Overrides a constructed monster's Health/MaxHealth/DamageToFarmer/
+        // resilience(Defense) fields with confirmed real values, so Lookup
+        // Anything's own native stat display shows correct numbers. -1 in
+        // any field means "unconfirmed" and is left alone (keeps showing
+        // the base type's own value for that specific stat only).
+        private void ApplyRealNumericStatsIfKnown(Monster fake, string name)
+        {
+            if (!SubjectWrapper.MonsterRealNumericStats.TryGetValue(name, out var realNums)) return;
+
+            if (realNums.hp >= 0)
+            {
+                try { fake.MaxHealth = realNums.hp; fake.Health = realNums.hp; } catch { }
+            }
+            if (realNums.dmg >= 0)
+            {
+                try { fake.DamageToFarmer = realNums.dmg; } catch { }
+            }
+            if (realNums.def >= 0)
+            {
+                try
+                {
+                    var resilienceField = fake.GetType().GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
+                            ?? typeof(Monster).GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                    object? netInt = resilienceField?.GetValue(fake);
+                    netInt?.GetType().GetProperty("Value")?.SetValue(netInt, realNums.def);
+                }
+                catch (Exception ex)
+                {
+                    Monitor.Log($"Couldn't override resilience/Defense for '{name}': {ex.Message}", LogLevel.Trace);
+                }
+            }
+        }
+
         private static string? ResolveItemIdByName(string itemName)
         {
             try
@@ -680,28 +713,7 @@ namespace LookupAnythingMobileSearch
                         // real numbers where we have them, so Lookup
                         // Anything's own native HP/Damage display is
                         // correct instead of showing the base type's.
-                        if (SubjectWrapper.MonsterRealNumericStats.TryGetValue(name, out var realNums))
-                        {
-                            try { fake.MaxHealth = realNums.hp; fake.Health = realNums.hp; } catch { }
-                            if (realNums.dmg > 0)
-                            {
-                                try { fake.DamageToFarmer = realNums.dmg; } catch { }
-                            }
-                            if (realNums.def >= 0)
-                            {
-                                try
-                                {
-                                    var resilienceField = fake.GetType().GetField("resilience", BindingFlags.NonPublic | BindingFlags.Instance)
-                                            ?? typeof(Monster).GetField("resilience", BindingFlags.NonPublic | BindingFlags.Instance);
-                                    object? netInt = resilienceField?.GetValue(fake);
-                                    netInt?.GetType().GetProperty("Value")?.SetValue(netInt, realNums.def);
-                                }
-                                catch (Exception ex)
-                                {
-                                    Monitor.Log($"Couldn't override resilience/Defense for '{name}': {ex.Message}", LogLevel.Trace);
-                                }
-                            }
-                        }
+                        ApplyRealNumericStatsIfKnown(fake, name);
                     }
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
@@ -750,6 +762,7 @@ namespace LookupAnythingMobileSearch
                     // own name override) already showed it correctly.
                     try { variantFake.Name = variantName; } catch { }
                     try { variantFake.displayName = variantName; } catch { }
+                    ApplyRealNumericStatsIfKnown(variantFake, variantName);
                     object? variantSubject = _bridge!.GetSubjectFor(variantFake);
                     if (variantSubject == null) continue;
 

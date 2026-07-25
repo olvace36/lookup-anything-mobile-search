@@ -671,6 +671,32 @@ namespace LookupAnythingMobileSearch.Framework
             ["Corrupted Spirit"] = (60, 40, 30),
             ["Viperial"] = (3000, 30, 5),
             ["Wraith"] = (200, 10, 3),
+            // Missing base-type entries (never added to this numeric
+            // table before, only described in text).
+            ["Badlands Serpent"] = (235, 30, 0),
+            ["Corrupt Serpent"] = (2000, 75, 0),
+            ["Serperial"] = (1500, 20, 5),
+            ["Toxic Bubble"] = (180, 40, -1),
+            ["Toxic Bubble (Weak Variant)"] = (1, 36, -1),
+            // Color-variant "danger zone" reskins - constructed via a
+            // separate code path (MonsterSearchAliases loop) that never
+            // applied numeric overrides before; confirmed/representative
+            // values from the mod's own FarmTypeManager config.
+            ["Dangerous Bat"] = (180, 30, -1),
+            ["Shadow Brute Dangerous"] = (450, 70, -1),
+            ["Stone Golem Dangerous"] = (400, 40, -1),
+            ["Skeleton Dangerous"] = (-1, 40, -1),
+            ["Skeleton Mage Dangerous"] = (-1, 50, -1),
+            ["Shadow Shaman Dangerous"] = (300, 60, -1),
+            ["Dangerous Metal Head"] = (600, 50, -1),
+            ["Dust Spirit Dangerous"] = (250, 40, -1),
+            ["Green Dust Spirit Dangerous"] = (650, 50, -1),
+            ["White Dust Spirit Dangerous"] = (250, 40, -1),
+            ["Wilderness Golem Spring"] = (525, 45, -1),
+            ["Wilderness Golem Summer"] = (525, 45, -1),
+            ["Wilderness Golem Fall"] = (525, 45, -1),
+            ["Wilderness Golem Winter"] = (525, 45, -1),
+            ["Evil Mummy"] = (-1, 70, -1),
         };
 
         internal static readonly Dictionary<string, string> SveMonsterBaseType = new(StringComparer.OrdinalIgnoreCase)
