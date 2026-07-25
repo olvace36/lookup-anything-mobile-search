@@ -313,31 +313,47 @@ namespace LookupAnythingMobileSearch
         // Anything's own native stat display shows correct numbers. -1 in
         // any field means "unconfirmed" and is left alone (keeps showing
         // the base type's own value for that specific stat only).
-        private void ApplyRealNumericStatsIfKnown(Monster fake, string name)
+        private void ApplyRealNumericStatsIfKnown(Monster fake, string name, string? baseTypeForXp = null)
         {
-            if (!SubjectWrapper.MonsterRealNumericStats.TryGetValue(name, out var realNums)) return;
+            if (SubjectWrapper.MonsterRealNumericStats.TryGetValue(name, out var realNums))
+            {
+                if (realNums.hp >= 0)
+                {
+                    try { fake.MaxHealth = realNums.hp; fake.Health = realNums.hp; } catch { }
+                }
+                if (realNums.dmg >= 0)
+                {
+                    try { fake.DamageToFarmer = realNums.dmg; } catch { }
+                }
+                if (realNums.def >= 0)
+                {
+                    try
+                    {
+                        var resilienceField = fake.GetType().GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
+                                ?? typeof(Monster).GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                        object? netInt = resilienceField?.GetValue(fake);
+                        netInt?.GetType().GetProperty("Value")?.SetValue(netInt, realNums.def);
+                    }
+                    catch (Exception ex)
+                    {
+                        Monitor.Log($"Couldn't override resilience/Defense for '{name}': {ex.Message}", LogLevel.Trace);
+                    }
+                }
+            }
 
-            if (realNums.hp >= 0)
+            // No mod config ever customizes XP for these reconstructed
+            // monsters - they should always show their base type's own
+            // XP, but a construction quirk sometimes leaves it at 0.
+            // Check for a monster-specific confirmed XP first (e.g. each
+            // slime color has its own real XP despite sharing a base
+            // type), then fall back to the base type's own XP.
+            if (SubjectWrapper.MonsterSpecificXP.TryGetValue(name, out int specificXp))
             {
-                try { fake.MaxHealth = realNums.hp; fake.Health = realNums.hp; } catch { }
+                try { fake.ExperienceGained = specificXp; } catch { }
             }
-            if (realNums.dmg >= 0)
+            else if (baseTypeForXp != null && SubjectWrapper.BaseTypeXP.TryGetValue(baseTypeForXp, out int xp))
             {
-                try { fake.DamageToFarmer = realNums.dmg; } catch { }
-            }
-            if (realNums.def >= 0)
-            {
-                try
-                {
-                    var resilienceField = fake.GetType().GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
-                            ?? typeof(Monster).GetField("resilience", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
-                    object? netInt = resilienceField?.GetValue(fake);
-                    netInt?.GetType().GetProperty("Value")?.SetValue(netInt, realNums.def);
-                }
-                catch (Exception ex)
-                {
-                    Monitor.Log($"Couldn't override resilience/Defense for '{name}': {ex.Message}", LogLevel.Trace);
-                }
+                try { fake.ExperienceGained = xp; } catch { }
             }
         }
 
@@ -403,7 +419,7 @@ namespace LookupAnythingMobileSearch
             if (monsterType == null || !typeof(Monster).IsAssignableFrom(monsterType)) return null;
 
             var constructors = monsterType.GetConstructors()
-                    .OrderBy(c => c.GetParameters().Length)
+                    .OrderByDescending(c => c.GetParameters().Length)
                     .ToArray();
 
             foreach (var ctor in constructors)
@@ -713,7 +729,7 @@ namespace LookupAnythingMobileSearch
                         // real numbers where we have them, so Lookup
                         // Anything's own native HP/Damage display is
                         // correct instead of showing the base type's.
-                        ApplyRealNumericStatsIfKnown(fake, name);
+                        ApplyRealNumericStatsIfKnown(fake, name, baseType);
                     }
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
@@ -762,7 +778,7 @@ namespace LookupAnythingMobileSearch
                     // own name override) already showed it correctly.
                     try { variantFake.Name = variantName; } catch { }
                     try { variantFake.displayName = variantName; } catch { }
-                    ApplyRealNumericStatsIfKnown(variantFake, variantName);
+                    ApplyRealNumericStatsIfKnown(variantFake, variantName, realName);
                     object? variantSubject = _bridge!.GetSubjectFor(variantFake);
                     if (variantSubject == null) continue;
 

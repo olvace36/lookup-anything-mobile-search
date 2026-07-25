@@ -347,7 +347,7 @@ namespace LookupAnythingMobileSearch.Framework
             "Magma Sprite", "Magma Sparker", "Dwarvish Sentry", "False Magma Cap",
             "Hot Head", "Lava Lurk", "Shadow Guy", "Shadow Girl", "Truffle Crab",
             "Skeleton Warrior",
-            "Spiker", "Crow", "Fireball", "Frog", "Cat", "Angry Roger",
+            "Spiker", "Crow", "Fireball", "Frog", "Cat", "Angry Roger", "Skeleton Dangerous",
         };
 
         // Vanilla farm animal / critter species (not individual pet names -
@@ -634,8 +634,41 @@ namespace LookupAnythingMobileSearch.Framework
             ["Corrupted Spirit"] = new() { ("Spiritual Essence", 1, 1, 1f) },
         };
 
+        // Confirmed XP values for vanilla base monster types, decoded
+        // directly from the game's own Monsters.xnb. No mod config
+        // customizes XP for any reconstructed monster - they should
+        // always show their base type's own XP - but base-type
+        // construction sometimes leaves ExperienceGained at 0 (a
+        // separate construction quirk), so this is applied as a
+        // guaranteed fallback for every reconstructed monster.
+        // Per-monster XP overrides for confirmed cases where the exact
+        // monster's real XP differs from its base type's own XP (e.g.
+        // every slime color has a different XP despite all being built
+        // from the same "Green Slime" base type). Takes priority over
+        // BaseTypeXP.
+        internal static readonly Dictionary<string, int> MonsterSpecificXP = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Frost Jelly"] = 6,
+            ["Sludge"] = 10,
+            ["Purple Slime"] = 10,
+            ["Copper Slime"] = 10,
+            ["Iron Slime"] = 10,
+        };
+
+        internal static readonly Dictionary<string, int> BaseTypeXP = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Green Slime"] = 3, ["Bat"] = 3, ["Skeleton"] = 8, ["Skeleton Mage"] = 8,
+            ["Mummy"] = 20, ["Royal Serpent"] = 20, ["Serpent"] = 20,
+            ["Shadow Brute"] = 15, ["Shadow Shaman"] = 15, ["Stone Golem"] = 5,
+            ["Metal Head"] = 6, ["Ghost"] = 15, ["Carbon Ghost"] = 20, ["Putrid Ghost"] = 25,
+            ["Pepper Rex"] = 7, ["Wilderness Golem"] = 5, ["Iridium Golem"] = 5,
+            ["Rock Crab"] = 4, ["Dust Spirit"] = 2, ["Lava Lurk"] = 12,
+            ["Lava Bat"] = 15, ["Frost Bat"] = 7, ["Bug"] = 1,
+        };
+
         internal static readonly Dictionary<string, (int hp, int dmg, int def)> MonsterRealNumericStats = new(StringComparer.OrdinalIgnoreCase)
         {
+            ["Apophis"] = (12500, 120, 0),
             ["Sludge"] = (205, 16, 0),
             ["Frost Jelly"] = (106, 7, 0),
             ["Purple Slime"] = (410, 16, 0),
@@ -658,13 +691,13 @@ namespace LookupAnythingMobileSearch.Framework
             ["Poltergeist"] = (1000, 120, 0),
             ["Sand Scorpion"] = (80, 100, 0),
             ["Swamp Golem"] = (220, 40, 0),
-            ["Swamp Lurk"] = (230, -1, -1),
+            ["Swamp Lurk"] = (230, 55, -1),
             ["Swamp Putrid Ghost"] = (750, 40, 0),
             ["Swamp Flower Crab"] = (90, 25, -1),
             ["Royal Badlands Serpent"] = (850, 65, -1),
-            ["Copper Crab"] = (200, -1, -1),
-            ["Gold Crab"] = (300, -1, -1),
-            ["Iron Crab"] = (250, -1, -1),
+            ["Copper Crab"] = (200, 30, -1),
+            ["Gold Crab"] = (300, 35, -1),
+            ["Iron Crab"] = (250, 32, -1),
             ["Beast 1"] = (400, 25, 10),
             ["Beast 2"] = (550, 45, 10),
             ["Beast 3"] = (700, 60, 10),
@@ -682,13 +715,13 @@ namespace LookupAnythingMobileSearch.Framework
             // separate code path (MonsterSearchAliases loop) that never
             // applied numeric overrides before; confirmed/representative
             // values from the mod's own FarmTypeManager config.
-            ["Dangerous Bat"] = (180, 30, -1),
-            ["Shadow Brute Dangerous"] = (450, 70, -1),
+            ["Dangerous Bat"] = (180, 32, -1),
+            ["Shadow Brute Dangerous"] = (425, 70, -1),
             ["Stone Golem Dangerous"] = (400, 40, -1),
-            ["Skeleton Dangerous"] = (-1, 40, -1),
+            ["Skeleton Dangerous"] = (655, 17, 2),
             ["Skeleton Mage Dangerous"] = (-1, 50, -1),
             ["Shadow Shaman Dangerous"] = (300, 60, -1),
-            ["Dangerous Metal Head"] = (600, 50, -1),
+            ["Dangerous Metal Head"] = (600, 50, 50),
             ["Dust Spirit Dangerous"] = (250, 40, -1),
             ["Green Dust Spirit Dangerous"] = (650, 50, -1),
             ["White Dust Spirit Dangerous"] = (250, 40, -1),
@@ -758,11 +791,11 @@ namespace LookupAnythingMobileSearch.Framework
             // fix, so they need their own mod-classification entry too).
             ["Wilderness Golem Spring"] = "Stardew Valley Expanded", ["Wilderness Golem Summer"] = "Stardew Valley Expanded",
             ["Wilderness Golem Fall"] = "Stardew Valley Expanded", ["Wilderness Golem Winter"] = "Stardew Valley Expanded",
-            ["Evil Mummy"] = "Stardew Valley Expanded",
-            ["Corrupt Bat"] = "Stardew Valley Expanded", ["Evil Bat"] = "Stardew Valley Expanded", ["Dangerous Bat"] = "Stardew Valley Expanded",
-            ["Skeleton Dangerous"] = "Stardew Valley Expanded", ["Skeleton Mage Dangerous"] = "Stardew Valley Expanded",
+            ["Corrupt Bat"] = "Stardew Valley Expanded", ["Evil Bat"] = "Stardew Valley Expanded",
+            ["Evil Mummy"] = "Stardew Valley Expanded", ["Dangerous Bat"] = "Stardew Valley Expanded",
             ["Shadow Brute Dangerous"] = "Stardew Valley Expanded", ["Shadow Shaman Dangerous"] = "Stardew Valley Expanded",
             ["Stone Golem Dangerous"] = "Stardew Valley Expanded", ["Dangerous Metal Head"] = "Stardew Valley Expanded",
+            ["Skeleton Mage Dangerous"] = "Stardew Valley Expanded",
             ["Dust Spirit Dangerous"] = "Stardew Valley Expanded", ["Green Dust Spirit Dangerous"] = "Stardew Valley Expanded",
             ["White Dust Spirit Dangerous"] = "Stardew Valley Expanded",
             ["Stygium Bat"] = "Sword & Sorcery", ["Stygium Crab"] = "Sword & Sorcery",
