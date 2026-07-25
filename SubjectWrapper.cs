@@ -533,78 +533,78 @@ namespace LookupAnythingMobileSearch.Framework
         // native drop display) instead of plain descriptive text.
         internal static readonly Dictionary<string, List<(string item, int min, int max, float chance)>> MonsterStructuredDrops = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Apophis"] = new() { ("Void Shard", 1, 1, 1f) },
+            ["Apophis"] = new() { ("Void Shard", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Corrupt Mummy"] = new() {
                 ("Solar Essence", 1, 1, 1f), ("Void Essence", 2, 2, 1f),
                 ("Void Pebble", 1, 1, 1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Corrupt Serpent"] = new() {
-                ("Void Pebble", 1, 1, 1f), ("Void Essence", 3, 3, 1f), ("Spicy Eel", 1, 1, 1f),
-            },
+                ("Void Pebble", 1, 1, 1f), ("Void Essence", 3, 3, 1f), ("Spicy Eel", 1, 1, 1f), ("Void Salmon Sushi", 1, 1, 0.5f),
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Poltergeist"] = new() {
                 ("Supernatural Goo", 1, 1, 1f), ("Ghost Crystal", 1, 1, 1f), ("Solar Essence", 5, 5, 1f),
-            },
-            ["Sand Scorpion"] = new() { ("Bug Meat", 1, 1, 1f), ("Void Pebble", 1, 1, 0.5f) },
-            ["Swamp Golem"] = new() { ("Sludge", 1, 1, 1f), ("Fiber", 1, 1, 1f) },
-            ["Swamp Putrid Ghost"] = new() { ("Swamp Essence", 3, 3, 1f) },
-            ["Swamp Flower Crab"] = new() { ("Swamp Flower", 1, 1, 1f) },
-            ["Toxic Bubble"] = new() { ("Swamp Essence", 1, 1, 1f), ("Sludge", 1, 1, 0.5f) },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Sand Scorpion"] = new() { ("Bug Meat", 1, 1, 1f), ("Void Pebble", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Swamp Golem"] = new() { ("Sludge", 1, 1, 1f), ("Fiber", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Swamp Putrid Ghost"] = new() { ("Swamp Essence", 3, 3, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Swamp Flower Crab"] = new() { ("Swamp Flower", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Toxic Bubble"] = new() { ("Swamp Essence", 1, 1, 1f), ("Sludge", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Bully Rex"] = new() {
                 ("Ornate Treasure Chest", 1, 1, 1f), ("Copper Bar", 4, 4, 1f), ("Iron Bar", 2, 2, 1f), ("Dinosaur Egg", 1, 1, 1f),
-            },
-            ["Beast 1"] = new() { ("Spiritual Essence", 1, 1, 1f) },
-            ["Beast 2"] = new() { ("Spiritual Essence", 1, 1, 1f) },
-            ["Beast 3"] = new() { ("Spiritual Essence", 1, 1, 1f) },
-            ["Wraith"] = new() { ("Spiritual Essence", 1, 1, 1f) },
-            ["Serperial"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Mountain Mistbloom", 7, 7, 1f) },
-            ["Viperial"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Golden Skull Coral", 1, 1, 1f), ("Entombed Ring", 1, 1, 1f) },
-            ["Fallen Adventurer"] = new() { ("Rusty Blade", 1, 1, 1f), ("Void Essence", 6, 6, 1f) },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Beast 1"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Beast 2"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Beast 3"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Wraith"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Serperial"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Mountain Mistbloom", 7, 7, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Viperial"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Golden Skull Coral", 1, 1, 1f), ("Entombed Ring", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Fallen Adventurer"] = new() { ("Rusty Blade", 1, 1, 1f), ("Void Essence", 6, 6, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Legendary Gold Slime"] = new() {
                 ("Gold Slime Egg", 1, 1, 1f), ("Green Slime Egg", 1, 1, 1f), ("Blue Slime Egg", 1, 1, 1f),
                 ("Red Slime Egg", 1, 1, 1f), ("Purple Slime Egg", 1, 1, 1f), ("Tiger Slime Egg", 1, 1, 1f),
                 ("Gold Carrot Seeds", 1, 1, 1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Legendary Sand Scorpion"] = new() {
                 ("Galdoran Gem", 1, 1, 1f), ("Magic Lamp", 1, 1, 1f), ("Ornate Treasure Chest", 1, 1, 1f), ("Gold Carrot Seeds", 1, 1, 1f),
-            },
-            ["Copper Crab"] = new() { ("Copper Ore", 1, 1, 1f), ("Copper Bar", 1, 1, 1f), ("Cherry Bomb", 1, 1, 0.4f) },
-            ["Gold Crab"] = new() { ("Gold Ore", 1, 1, 1f), ("Gold Bar", 1, 1, 1f), ("Mega Bomb", 1, 1, 0.4f) },
-            ["Iron Crab"] = new() { ("Iron Ore", 1, 1, 1f), ("Iron Bar", 1, 1, 1f), ("Bomb", 1, 1, 0.4f) },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Copper Crab"] = new() { ("Copper Ore", 1, 1, 1f), ("Copper Bar", 1, 1, 1f), ("Cherry Bomb", 1, 1, 0.4f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Gold Crab"] = new() { ("Gold Ore", 1, 1, 1f), ("Gold Bar", 1, 1, 1f), ("Mega Bomb", 1, 1, 0.4f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Iron Crab"] = new() { ("Iron Ore", 1, 1, 1f), ("Iron Bar", 1, 1, 1f), ("Bomb", 1, 1, 0.4f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Royal Badlands Serpent"] = new() {
                 ("Bomb", 1, 1, 0.15f), ("Spicy Eel", 1, 1, 0.06f), ("Void Essence", 1, 1, 0.99f), ("Rabbit's Foot", 1, 1, 0.008f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Badlands Serpent"] = new() {
                 ("Void Essence", 1, 1, 0.99f), ("Bomb", 1, 1, 0.15f), ("Spicy Eel", 1, 1, 0.06f),
                 ("Diamond", 1, 1, 0.008f), ("Rabbit's Foot", 1, 1, 0.008f),
-            },
-            ["Corrupt Spirit"] = new() { ("Void Pebble", 1, 1, 1f), ("Solar Essence", 3, 3, 1f) },
-            ["Swamp Lurk"] = new() { ("Sludge", 1, 1, 1f) },
-            ["Stick Bug"] = new() { ("Ginger", 1, 1, 1f), ("Qi Gem", 2, 2, 1f) },
-            ["Toxic Bubble (Weak Variant)"] = new() { ("Swamp Essence", 1, 1, 1f), ("Sludge", 1, 1, 0.5f) },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Corrupt Spirit"] = new() { ("Void Pebble", 1, 1, 1f), ("Solar Essence", 3, 3, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Swamp Lurk"] = new() { ("Sludge", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Stick Bug"] = new() { ("Ginger", 1, 1, 1f), ("Qi Gem", 1, 1, 1f), ("Qi Gem", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Toxic Bubble (Weak Variant)"] = new() { ("Swamp Essence", 1, 1, 1f), ("Sludge", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Sludge"] = new() {
                 ("Coal", 1, 3, 0.1f), ("Diamond", 1, 1, 0.01f), ("Dwarf Scroll III", 1, 1, 0.005f),
-                ("Dwarf Scroll IV", 1, 1, 0.001f), ("Red Slime Egg", 1, 1, 0.01f),
+                ("Dwarf Scroll IV", 1, 1, 0.001f), ("Red Slime Egg", 1, 1, 0.01f), ("Slime Seed", 1, 1, 0.5f),
                 ("Sap", 1, 1, 0.5f), ("Slime", 1, 1, 0.8f), ("White Algae", 1, 1, 0.1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Frost Jelly"] = new() {
                 ("Blue Slime Egg", 1, 1, 0.01f), ("Dwarf Scroll II", 1, 1, 0.005f), ("Dwarf Scroll III", 1, 1, 0.015f),
-                ("Dwarf Scroll IV", 1, 1, 0.001f), ("Jade", 1, 1, 0.02f), ("Mahogany Seed", 1, 1, 0.1f),
+                ("Dwarf Scroll IV", 1, 1, 0.001f), ("Jade", 1, 1, 0.02f), ("Mahogany Seed", 1, 1, 0.1f), ("Slime Seed", 1, 1, 0.5f),
                 ("Sap", 1, 1, 0.5f), ("Slime", 1, 1, 0.75f), ("Winter Root", 1, 1, 0.08f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Purple Slime"] = new() {
                 ("Coal", 1, 3, 0.1f), ("Diamond", 1, 1, 0.01f), ("Dwarf Scroll III", 1, 1, 0.005f),
                 ("Dwarf Scroll IV", 1, 1, 0.001f), ("Iridium Bar", 1, 1, 0.009f), ("Iridium Ore", 1, 1, 0.08f),
                 ("Purple Slime Egg", 1, 1, 0.01f), ("Red Cabbage Seeds", 1, 1, 0.00125f),
                 ("Sap", 1, 1, 0.5f), ("Slime", 1, 1, 0.8f), ("White Algae", 1, 1, 0.1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Copper Slime"] = new() {
                 ("Copper Ore", 1, 1, 0.33f), ("Diamond", 1, 1, 0.01f), ("Dwarf Scroll III", 1, 1, 0.005f),
                 ("Dwarf Scroll IV", 1, 1, 0.001f), ("Sap", 1, 1, 0.5f), ("Slime", 1, 1, 0.8f), ("White Algae", 1, 1, 0.1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Iron Slime"] = new() {
                 ("Diamond", 1, 1, 0.01f), ("Dwarf Scroll III", 1, 1, 0.005f), ("Dwarf Scroll IV", 1, 1, 0.001f),
                 ("Iron Ore", 1, 1, 0.33f), ("Sap", 1, 1, 0.5f), ("Slime", 1, 1, 0.8f), ("White Algae", 1, 1, 0.1f),
-            },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             // Skeleton Warrior and Shadow Guy: their exact drop item IDs
             // ARE known from decoding the game's own Monsters.xnb (769,
             // 105, 106, 166, 60, 232, 72, 74, 97, 99 for Skeleton Warrior;
@@ -613,25 +613,39 @@ namespace LookupAnythingMobileSearch.Framework
             // names requires decoding Objects.xnb too, which wasn't
             // completed - no drop list is given here rather than
             // guessing, since a wrong guessed item would be misleading.
-            ["Mutant Grub"] = new() { ("Bug Meat", 1, 1, 0.6f), ("White Algae", 1, 1, 0.02f) },
-            ["Mutant Fly"] = new() { ("Bug Meat", 1, 1, 0.9f), ("White Algae", 1, 1, 0.02f) },
+            ["Mutant Grub"] = new() { ("Bug Meat", 1, 1, 0.6f), ("White Algae", 1, 1, 0.02f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Mutant Fly"] = new() { ("Bug Meat", 1, 1, 0.9f), ("White Algae", 1, 1, 0.02f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Haunted Skull"] = new() {
                 ("Aquamarine Ring", 1, 1, 0.013f), ("Dark Sword", 1, 1, 0.013f), ("Earth Crystal", 1, 1, 0.013f),
                 ("Magic Rock Candy", 1, 1, 0.0013f), ("Mega Bomb", 1, 1, 0.013f), ("Oak Resin", 1, 1, 0.013f),
                 ("Prehistoric Skull", 1, 1, 0.013f), ("Ruby Ring", 1, 1, 0.013f), ("Skeletal Hand", 1, 1, 0.013f),
                 ("Solar Essence", 1, 1, 0.013f), ("Void Essence", 1, 1, 0.013f), ("Rice Shoot", 1, 1, 0.2143f),
-                // Clothing/mannequin drops (Gray Baggy Pants, Dark Bandana
-                // Shirt, Dark Highlight Shirt, Gray Relaxed Fit Pants,
-                // Skeleton Shirt, Skull Shirt, Cursed Mannequin M/F) are
-                // NOT included here - they're Clothing/Furniture category
-                // items, not simple Objects, so they won't resolve via
-                // the current Game1.objectData-based item lookup.
-            },
+                // Clothing/mannequin drops - now included since
+                // multi-category item lookup (Clothing, Furniture) was
+                // added; probability estimates match the other 1.3%
+                // clothing-tier drops confirmed from the wiki.
+                ("Gray Baggy Pants", 1, 1, 0.0022f), ("Dark Bandana Shirt", 1, 1, 0.0022f),
+                ("Dark Highlight Shirt", 1, 1, 0.0022f), ("Gray Relaxed Fit Pants", 1, 1, 0.0022f),
+                ("Skeleton Shirt", 1, 1, 0.0022f), ("Skull Shirt", 1, 1, 0.0022f),
+                ("Cursed Mannequin (M)", 1, 1, 0.0043f), ("Cursed Mannequin (F)", 1, 1, 0.0043f),
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Skeleton Mage Dangerous"] = new() { ("Void Pebble", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Dust Spirit Dangerous"] = new() { ("Fungus Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["White Dust Spirit Dangerous"] = new() { ("Fungus Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Green Dust Spirit Dangerous"] = new() { ("Green Mushroom", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Shadow Brute Dangerous"] = new() { ("Void Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Shadow Shaman Dangerous"] = new() { ("Void Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Wilderness Golem Spring"] = new() { ("Stalk Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Wilderness Golem Summer"] = new() { ("Stalk Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Wilderness Golem Fall"] = new() { ("Stalk Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Wilderness Golem Winter"] = new() { ("Stalk Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Shadow Sniper"] = new() { ("Void Seed", 1, 1, 0.5f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["ES Mine Bat Iridium"] = new() { ("Iridium Ore", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
             ["Legendary Purple Mushroom Crab"] = new() {
-                ("Mega Purple Mushroom", 1, 1, 1f), ("Purple Mushroom", 8, 8, 1f),
+                ("Mega Purple Mushroom", 1, 1, 1f), ("Purple Mushroom", 8, 8, 1f), ("Crab", 1, 1, 1f),
                 ("Mushroom Tree Seed", 1, 1, 1f), ("Life Elixir", 3, 3, 1f), ("Gold Carrot Seeds", 1, 1, 1f),
-            },
-            ["Corrupted Spirit"] = new() { ("Spiritual Essence", 1, 1, 1f) },
+             ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
+            ["Corrupted Spirit"] = new() { ("Spiritual Essence", 1, 1, 1f), ("Diamond", 1, 1, 0.0005f), ("Prismatic Shard", 1, 1, 0.0005f) },
         };
 
         // Confirmed XP values for vanilla base monster types, decoded
@@ -1514,6 +1528,59 @@ namespace LookupAnythingMobileSearch.Framework
         private static readonly Dictionary<string, Rectangle> SpriteCropOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
             ["JunimoJade"] = new Rectangle(0, 17, 16, 16),
+            // Sprite crop fixes based on confirmed real pixel dimensions
+            // from the actual uploaded sprite sheets - frame 0 (top-left)
+            // using the most likely exact-division frame size. Not 100%
+            // confirmed against true animation frame boundaries, just
+            // computed from divisibility of the real sheet size.
+            ["Evil Mummy"] = new Rectangle(0, 0, 16, 32),           // 64x160 -> 4 cols x 5 rows of 16x32
+            ["Evil Bat"] = new Rectangle(0, 0, 16, 16),             // 64x112 -> 4 cols x 7 rows of 16x16
+            ["Corrupt Bat"] = new Rectangle(0, 0, 16, 16),          // 64x112
+            ["Dangerous Bat"] = new Rectangle(0, 0, 16, 16),        // 64x112
+            ["Green Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16),  // 64x48 -> 3 rows
+            ["Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16),        // 64x48
+            ["White Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16), // 64x48
+            ["Dangerous Metal Head"] = new Rectangle(0, 0, 16, 16), // 64x80 -> 5 rows
+            ["Shadow Shaman Dangerous"] = new Rectangle(0, 0, 16, 24), // 64x120 -> 5 rows of 24
+            ["Skeleton Mage Dangerous"] = new Rectangle(0, 0, 16, 32), // 64x192 -> 6 rows of 32
+            ["Skeleton Dangerous"] = new Rectangle(0, 0, 16, 32),      // 64x192
+            ["Stone Golem Dangerous"] = new Rectangle(0, 0, 16, 24),   // 64x168 -> 7 rows of 24
+            ["Wilderness Golem Spring"] = new Rectangle(0, 0, 16, 24), // 64x168
+            ["Wilderness Golem Summer"] = new Rectangle(0, 0, 16, 24),
+            ["Wilderness Golem Fall"] = new Rectangle(0, 0, 16, 24),
+            ["Wilderness Golem Winter"] = new Rectangle(0, 0, 16, 24),
+            ["Apophis"] = new Rectangle(0, 0, 32, 32),              // 160x96 -> 5 cols x 3 rows of 32x32
+            ["Royal Badlands Serpent"] = new Rectangle(0, 0, 32, 32), // 160x96
+            ["Bully Rex"] = new Rectangle(0, 0, 32, 32),            // 128x256 -> 4 cols x 8 rows of 32x32
+            ["Poltergeist"] = new Rectangle(0, 0, 32, 32),          // 128x256
+            ["Swamp Lurk"] = new Rectangle(0, 0, 16, 32),           // 64x32 -> single row of 32 tall
+            ["Stygium Droplet"] = new Rectangle(0, 0, 16, 16),      // 112x80 (SnS's own convention)
+            ["ES Mine Bat"] = new Rectangle(0, 0, 16, 16),          // 64x112, confirmed from actual sprite file
+            ["ES Mine Bat Iridium"] = new Rectangle(0, 0, 16, 16),  // 64x112, confirmed from actual sprite file
+            ["Legendary Gold Slime"] = new Rectangle(0, 0, 16, 24),          // LegendarySlime.png 64x168
+            ["Legendary Sand Scorpion"] = new Rectangle(0, 0, 16, 24),       // LegendarySandScorpion.png 64x168
+            ["Legendary Purple Mushroom Crab"] = new Rectangle(0, 0, 16, 24), // LegendaryPurpleMushroomCrab.png 64x144
+            ["Fallen Adventurer"] = new Rectangle(0, 0, 16, 32),       // FallenAdventurerMale/Female.png 64x160
+            ["Toxic Bubble (Weak Variant)"] = new Rectangle(0, 0, 16, 16), // ToxicBubble_Variant.png 32x80
+            ["Toxic Bubble"] = new Rectangle(0, 0, 16, 24),          // ToxicBubble.png 64x120
+            ["Armored Bug"] = new Rectangle(0, 0, 16, 16),           // used 64x80 -> 5 rows
+            ["Assassin Bug"] = new Rectangle(0, 0, 16, 16),          // same base as Armored Bug
+            ["Haunted Skull"] = new Rectangle(0, 0, 16, 16),         // used 32x80 -> 5 rows, 2 cols
+            ["Mutant Grub"] = new Rectangle(0, 144, 16, 16),         // Grub.png is 256 tall but Grub itself only uses 144 - Mutant Grub likely packed into the remaining 112px space in the same texture
+            ["Mutant Fly"] = new Rectangle(0, 144, 16, 16),          // Fly.png has the identical 256/144 pattern - same reasoning as Mutant Grub
+            ["Stick Bug"] = new Rectangle(0, 0, 16, 16),             // used 64x144 -> 9 rows
+            ["Royal Serpent"] = new Rectangle(0, 0, 32, 32),         // used 160x96, matches Apophis convention
+            ["Carbon Ghost"] = new Rectangle(0, 0, 16, 24),          // used 64x120 -> 5 rows of 24
+            ["Pepper Rex"] = new Rectangle(0, 0, 32, 32),            // 128x256, matches Bully Rex/Poltergeist
+            ["Mummy"] = new Rectangle(0, 0, 16, 32),                 // used 64x160, matches Evil Mummy
+            ["Spider"] = new Rectangle(0, 0, 16, 16),                // used 64x80 -> 5 rows
+            ["Magma Duggy"] = new Rectangle(0, 0, 16, 16),           // used 64x95 (approx)
+            ["Lava Lurk"] = new Rectangle(0, 0, 16, 32),             // 64x32, single row (matches Swamp Lurk)
+            ["Frog"] = new Rectangle(0, 0, 16, 16),                 // 64x32, small critter, 2 rows
+            ["Magma Sprite"] = new Rectangle(0, 0, 16, 16),          // used 112x80 -> 7 cols x 5 rows
+            ["Magma Sparker"] = new Rectangle(0, 0, 16, 16),         // used 112x80
+            ["Shadow Girl"] = new Rectangle(0, 0, 16, 32),           // used 64x96 -> 3 rows of 32
+            ["Wilderness Golem"] = new Rectangle(0, 0, 16, 24),      // used 64x168, matches Stone Golem Dangerous
         };
         private static readonly HashSet<string> _loggedModGroupTrace = new();
 

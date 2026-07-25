@@ -196,7 +196,7 @@ namespace LookupAnythingMobileSearch
                 if (!TextureAliases.TryGetValue(monsterName, out string? alias)) {
                     return;
                 }
-                string path = alias.StartsWith("@") ? alias.Substring(1) : "Characters\\Monsters\\" + alias;
+                string path = alias.StartsWith("@") ? alias.Substring(1) : "Characters/Monsters/" + alias;
                 if (Game1.content.DoesAssetExist<Texture2D>(path)) {
                     fake.Sprite = new AnimatedSprite(path);
                 }
@@ -253,6 +253,8 @@ namespace LookupAnythingMobileSearch
             ("Hats", "(H)"),
             ("Boots", "(B)"),
             ("Weapons", "(W)"),
+            ("BigCraftables", "(BC)"),
+            ("Trinkets", "(TR)"),
         };
 
         private static void BuildMultiCategoryCache()
@@ -268,9 +270,29 @@ namespace LookupAnythingMobileSearch
             {
                 try
                 {
-                    var method = dataLoaderType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
-                    if (method == null) continue;
+                    var method = dataLoaderType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase);
+                    if (method == null)
+                    {
+                        // Fallback: manually search all public static
+                        // methods case-insensitively, in case GetMethod's
+                        // IgnoreCase flag doesn't behave as expected for
+                        // this overload resolution.
+                        foreach (var candidate in dataLoaderType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                        {
+                            if (string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                method = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    if (method == null)
+                    {
+                        SMonitor?.Log($"Couldn't find DataLoader.{methodName} (tried case-insensitive too) - '{prefix}' category items won't be searchable for drop icons.", LogLevel.Trace);
+                        continue;
+                    }
                     object? dict = method.Invoke(null, new object?[] { Game1.content });
+                    int countBefore = _multiCategoryNameToIdCache.Count;
                     if (dict is System.Collections.IDictionary idict)
                     {
                         foreach (System.Collections.DictionaryEntry entry in idict)
@@ -299,6 +321,7 @@ namespace LookupAnythingMobileSearch
                             }
                             catch { /* skip items that fail to construct */ }
                         }
+                        SMonitor?.Log($"Loaded {_multiCategoryNameToIdCache.Count - countBefore} '{prefix}' category item names for drop-icon lookup.", LogLevel.Trace);
                     }
                 }
                 catch (Exception ex)
@@ -570,6 +593,14 @@ namespace LookupAnythingMobileSearch
                     }
                 }
 
+                if (wrapped != null && wrapped.GetCategory() == "Monsters" && STranslation != null)
+                {
+                    string label = STranslation.Get("field.mines-bottom-bonus").Default("Bonus if you've reached the bottom of the Mines");
+                    string text = STranslation.Get("monster.mines-bottom-bonus-text").Default("Any monster you kill after reaching floor 120 of the Mines has a small extra chance to drop a Diamond (0.05%) or Prismatic Shard (0.05%), regardless of what it normally drops.");
+                    extraFields.Add(Activator.CreateInstance(_genericFieldType,
+                            new object?[] { label, text, null })!);
+                }
+
                 if (wrapped != null && _itemDropListFieldType != null && _itemDropDataType != null
                         && SubjectWrapper.MonsterStructuredDrops.TryGetValue(wrapped.InternalName, out var dropList))
                 {
@@ -657,7 +688,7 @@ namespace LookupAnythingMobileSearch
                     // Lookup Anything's own GetMonsterNames() never
                     // returns for some reason - attempted directly here
                     // instead of relying solely on its enumeration.
-                    .Concat(new[] { "Armored Bug", "Assassin Bug", "Haunted Skull", "Mutant Fly", "Mutant Grub", "Shadow Girl", "Stick Bug", "Angry Roger" })
+                    .Concat(new[] { "Armored Bug", "Assassin Bug", "Haunted Skull", "Mutant Fly", "Mutant Grub", "Shadow Girl", "Stick Bug", "Angry Roger", "Wilderness Golem" })
                     .Distinct().ToList();
             foreach (string name in names)
             {
@@ -690,9 +721,9 @@ namespace LookupAnythingMobileSearch
                             string assetKey = name == "Toxic Bubble (Weak Variant)"
                                     ? "ToxicBubble_Variant"
                                     : (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
-                            var tex = Game1.content.Load<Texture2D>($"Characters\\Monsters\\{assetKey}");
+                            var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
                             if (tex != null && fake.Sprite != null)
-                                fake.Sprite = new AnimatedSprite($"Characters\\Monsters\\{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
                         }
                         catch (Exception texEx)
                         {
@@ -730,6 +761,22 @@ namespace LookupAnythingMobileSearch
                         // Anything's own native HP/Damage display is
                         // correct instead of showing the base type's.
                         ApplyRealNumericStatsIfKnown(fake, name, baseType);
+                        if (fake is StardewValley.Monsters.GreenSlime slimeInstance)
+                        {
+                            Microsoft.Xna.Framework.Color? slimeColor = name switch
+                            {
+                                "Sludge" => new Microsoft.Xna.Framework.Color(230, 40, 40),
+                                "Frost Jelly" => new Microsoft.Xna.Framework.Color(60, 130, 255),
+                                "Purple Slime" => new Microsoft.Xna.Framework.Color(160, 60, 200),
+                                "Copper Slime" => new Microsoft.Xna.Framework.Color(190, 110, 60),
+                                "Iron Slime" => new Microsoft.Xna.Framework.Color(180, 180, 190),
+                                _ => null,
+                            };
+                            if (slimeColor.HasValue)
+                            {
+                                try { slimeInstance.color.Value = slimeColor.Value; } catch { }
+                            }
+                        }
                     }
                     // Force a clean idle frame right when we build this
                     // instance - not just when OUR OWN list code later
@@ -784,7 +831,7 @@ namespace LookupAnythingMobileSearch
 
                     Texture2D? variantTex = null;
                     string assetKey = string.Concat(variantName.Where(c => !char.IsWhiteSpace(c)));
-                    try { variantTex = Game1.content.Load<Texture2D>($"Characters\\Monsters\\{assetKey}"); }
+                    try { variantTex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}"); }
                     catch (Exception texEx)
                     {
                         Monitor.Log($"Couldn't load variant texture for '{variantName}' (tried '{assetKey}'): {texEx.Message}", LogLevel.Trace);
