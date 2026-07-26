@@ -442,7 +442,7 @@ namespace LookupAnythingMobileSearch
             if (monsterType == null || !typeof(Monster).IsAssignableFrom(monsterType)) return null;
 
             var constructors = monsterType.GetConstructors()
-                    .OrderByDescending(c => c.GetParameters().Length)
+                    .OrderBy(c => c.GetParameters().Length)
                     .ToArray();
 
             foreach (var ctor in constructors)
@@ -718,12 +718,32 @@ namespace LookupAnythingMobileSearch
                             // (e.g. "RSVSerperial.png"), unlike SVE's
                             // plain concatenated-name convention.
                             bool isRsv = name is "Serperial" or "Viperial" or "Wraith" or "Corrupted Spirit" or "Beast 1" or "Beast 2" or "Beast 3";
-                            string assetKey = name == "Toxic Bubble (Weak Variant)"
-                                    ? "ToxicBubble_Variant"
-                                    : (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
-                            var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
-                            if (tex != null && fake.Sprite != null)
-                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                            string strippedKey = (isRsv ? "RSV" : "") + string.Concat(name.Where(c => !char.IsWhiteSpace(c)));
+                            // Try several real-world naming variations in
+                            // order, since confirmed file names don't all
+                            // follow the same convention (e.g. "Armored
+                            // Bug.png" keeps its space, "ESMineBats.png"
+                            // has a trailing 's' the internal name lacks).
+                            string[] candidates = name switch
+                            {
+                                "Toxic Bubble (Weak Variant)" => new[] { "ToxicBubble_Variant" },
+                                "ES Mine Bat Iridium" => new[] { "ESMineBatsIridium", strippedKey },
+                                _ => new[] { strippedKey, name, strippedKey + "s", name + "s" },
+                            };
+                            Texture2D? tex = null;
+                            string? matchedKey = null;
+                            foreach (string candidate in candidates.Distinct())
+                            {
+                                try
+                                {
+                                    tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{candidate}");
+                                    matchedKey = candidate;
+                                    break;
+                                }
+                                catch { /* try next candidate */ }
+                            }
+                            if (tex != null && matchedKey != null && fake.Sprite != null)
+                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{matchedKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
                         }
                         catch (Exception texEx)
                         {
