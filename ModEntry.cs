@@ -738,9 +738,11 @@ namespace LookupAnythingMobileSearch
                             };
                             var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
                             Monitor.Log($"[Diagnostic] '{name}' tex load: tex={(tex == null ? "null" : $"{tex.Width}x{tex.Height}")}, fake.Sprite before={(fake.Sprite == null ? "null" : "set")}", LogLevel.Debug);
-                            if (tex != null && fake.Sprite != null)
+                            if (tex != null)
                             {
-                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                                int frameW = fake.Sprite?.SpriteWidth ?? 16;
+                                int frameH = fake.Sprite?.SpriteHeight ?? (SubjectWrapper.GetCropOverrideHeight(name) ?? 16);
+                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, frameW, frameH);
                                 Monitor.Log($"[Diagnostic] '{name}' Sprite after assign: sprite={(fake.Sprite == null ? "null" : "set")}, texture={(fake.Sprite?.Texture == null ? "null" : "set")}", LogLevel.Debug);
                             }
                         }
@@ -849,7 +851,8 @@ namespace LookupAnythingMobileSearch
                         string resolved = STranslation.Get(conditionKey).Default("");
                         if (!string.IsNullOrEmpty(resolved)) condition = resolved;
                     }
-                    SubjectWrapper.RegisterVariant(variantSubject, variantName, realName, variantTex, null, condition);
+                    Rectangle? variantCrop = SubjectWrapper.GetCropOverrideRect(variantName);
+                    SubjectWrapper.RegisterVariant(variantSubject, variantName, realName, variantTex, variantCrop, condition);
                     result.Add(variantSubject);
                 }
                 catch (Exception ex)

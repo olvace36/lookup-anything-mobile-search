@@ -1581,6 +1581,13 @@ namespace LookupAnythingMobileSearch.Framework
             ["Magma Sparker"] = new Rectangle(0, 0, 16, 16),         // used 112x80
             ["Shadow Girl"] = new Rectangle(0, 0, 16, 32),           // used 64x96 -> 3 rows of 32
             ["Wilderness Golem"] = new Rectangle(0, 0, 16, 24),      // used 64x168, matches Stone Golem Dangerous
+            ["Beast 1"] = new Rectangle(0, 0, 16, 32),               // RSVBeast1.png 64x256 -> 8 rows
+            ["Beast 2"] = new Rectangle(0, 0, 16, 32),               // RSVBeast2.png 64x256
+            ["Beast 3"] = new Rectangle(0, 0, 16, 32),               // RSVBeast3.png 64x256
+            ["Corrupted Spirit"] = new Rectangle(0, 0, 16, 24),      // RSVCorruptSpirit.png 64x120
+            ["Serperial"] = new Rectangle(0, 0, 32, 32),             // RSVSerperial.png 160x96, matches Apophis convention
+            ["Viperial"] = new Rectangle(0, 0, 32, 32),              // RSVViperial.png 128x256, matches Bully Rex convention
+            ["Wraith"] = new Rectangle(0, 0, 16, 24),                // RSVWraith.png 64x216 -> 9 rows
         };
         private static readonly HashSet<string> _loggedModGroupTrace = new();
 
@@ -1871,6 +1878,16 @@ namespace LookupAnythingMobileSearch.Framework
             "Freya", "Gertrude", "Cordelia", "Cassandra", "Sawyer", "Drake",
             "Treyvon", "Brock", "Brianna", "Emin", "Hank", "HankSVE", "Charlie", "Gale", "Edmund",
         };
+
+        internal static Rectangle? GetCropOverrideRect(string name)
+        {
+            return SpriteCropOverrides.TryGetValue(name, out Rectangle rect) ? rect : (Rectangle?)null;
+        }
+
+        internal static int? GetCropOverrideHeight(string name)
+        {
+            return SpriteCropOverrides.TryGetValue(name, out Rectangle rect) ? rect.Height : null;
+        }
 
         public static bool NeedsVisualPriming(string internalName)
         {
