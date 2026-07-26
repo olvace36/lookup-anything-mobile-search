@@ -724,26 +724,17 @@ namespace LookupAnythingMobileSearch
                             // follow the same convention (e.g. "Armored
                             // Bug.png" keeps its space, "ESMineBats.png"
                             // has a trailing 's' the internal name lacks).
-                            string[] candidates = name switch
+                            string assetKey = name switch
                             {
-                                "Toxic Bubble (Weak Variant)" => new[] { "ToxicBubble_Variant" },
-                                "ES Mine Bat Iridium" => new[] { "ESMineBatsIridium", strippedKey },
-                                _ => new[] { strippedKey, name, strippedKey + "s", name + "s" },
+                                "Toxic Bubble (Weak Variant)" => "ToxicBubble_Variant",
+                                "ES Mine Bat Iridium" => "ESMineBatsIridium",
+                                "ES Mine Bat" => "ESMineBats",
+                                "Armored Bug" => "Armored Bug",
+                                _ => strippedKey,
                             };
-                            Texture2D? tex = null;
-                            string? matchedKey = null;
-                            foreach (string candidate in candidates.Distinct())
-                            {
-                                try
-                                {
-                                    tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{candidate}");
-                                    matchedKey = candidate;
-                                    break;
-                                }
-                                catch { /* try next candidate */ }
-                            }
-                            if (tex != null && matchedKey != null && fake.Sprite != null)
-                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{matchedKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                            var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
+                            if (tex != null && fake.Sprite != null)
+                                fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
                         }
                         catch (Exception texEx)
                         {
@@ -759,22 +750,7 @@ namespace LookupAnythingMobileSearch
                         // otherwise make this show up as vanilla instead
                         // of correctly classified as its real SVE name.
                         try { fake.Name = name; } catch { }
-                        try
-                        {
-                            // Lookup Anything's title/list display uses
-                            // Character.getName(), which returns the
-                            // separately-cached displayName property
-                            // rather than re-deriving from .Name -
-                            // confirmed as a public property directly
-                            // from the game's own DLL (get_displayName/
-                            // set_displayName both exist), so it can be
-                            // set directly without reflection.
-                            fake.displayName = name;
-                        }
-                        catch (Exception ex)
-                        {
-                            Monitor.Log($"Couldn't override displayName for '{name}': {ex.Message}", LogLevel.Trace);
-                        }
+                        try { fake.displayName = name; } catch { }
 
                         // Override the actual stat fields with confirmed
                         // real numbers where we have them, so Lookup
@@ -809,6 +785,7 @@ namespace LookupAnythingMobileSearch
                     // page shows - this needs to happen at creation time
                     // to help both.
                     try { fake.Sprite.CurrentFrame = 0; } catch { }
+                    try { fake.currentLocation = Game1.currentLocation; } catch { }
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
                         EnsureVariantInfoPatchApplied(subject);
@@ -846,6 +823,7 @@ namespace LookupAnythingMobileSearch
                     try { variantFake.Name = variantName; } catch { }
                     try { variantFake.displayName = variantName; } catch { }
                     ApplyRealNumericStatsIfKnown(variantFake, variantName, realName);
+                    try { variantFake.currentLocation = Game1.currentLocation; } catch { }
                     object? variantSubject = _bridge!.GetSubjectFor(variantFake);
                     if (variantSubject == null) continue;
 
