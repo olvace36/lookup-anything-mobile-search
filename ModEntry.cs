@@ -771,6 +771,19 @@ namespace LookupAnythingMobileSearch
                         }
                     }
                     TryFixMonsterTexture(fake, constructName);
+                    if (fake.Sprite == null)
+                    {
+                        try
+                        {
+                            int fallbackH = SubjectWrapper.GetCropOverrideHeight(name) ?? 16;
+                            fake.Sprite = new AnimatedSprite($"Characters/Monsters/{constructName}", 0, 16, fallbackH);
+                            Monitor.Log($"[Diagnostic] '{name}' used universal fallback Sprite from base '{constructName}': sprite={(fake.Sprite == null ? "null" : "set")}", LogLevel.Debug);
+                        }
+                        catch (Exception fallbackEx)
+                        {
+                            Monitor.Log($"Couldn't build even a fallback Sprite for '{name}' (base '{constructName}'): {fallbackEx.Message}", LogLevel.Trace);
+                        }
+                    }
                     if (baseType != null)
                     {
                         // Restore the real display/internal name - the

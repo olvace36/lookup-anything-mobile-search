@@ -1196,15 +1196,21 @@ namespace LookupAnythingMobileSearch.Framework
                         // sidesteps the unreliable index math entirely.
                         int frameW = sprite.SpriteWidth;
                         int frameH = sprite.SpriteHeight;
-                        // Sanity check: if the reported frame height
-                        // exactly equals the WHOLE sheet's height, that's
-                        // a strong sign it's incorrectly reporting the
-                        // full multi-frame sheet as if it were a single
-                        // frame - confirmed this happens for many
-                        // monsters, not just ones with exactly 2 frames
-                        // stacked. Try dividing by increasing frame
-                        // counts until a reasonable (<=64px) size divides
-                        // evenly, for both width and height independently.
+                        // Check for a confirmed, exact crop override FIRST
+                        // (populated from real sprite file dimensions) -
+                        // this table was being populated but never
+                        // actually consulted here, so every monster with
+                        // an override still fell through to the
+                        // heuristic guess below regardless.
+                        bool usedOverride = false;
+                        if (SpriteCropOverrides.TryGetValue(Name, out Rectangle overrideRect))
+                        {
+                            frameW = overrideRect.Width;
+                            frameH = overrideRect.Height;
+                            usedOverride = true;
+                        }
+                        if (!usedOverride)
+                        {
                         for (int n = 2; n <= 12 && frameH > 64; n++)
                         {
                             if (sprite.Texture.Height % n == 0 && sprite.Texture.Height / n <= 64)
@@ -1220,6 +1226,7 @@ namespace LookupAnythingMobileSearch.Framework
                                 frameW = sprite.Texture.Width / n;
                                 break;
                             }
+                        }
                         }
                         Rectangle sourceRect = new(0, 0, frameW, frameH);
                         if (target is StardewValley.Monsters.GreenSlime slime)
@@ -1537,6 +1544,9 @@ namespace LookupAnythingMobileSearch.Framework
             ["Evil Bat"] = new Rectangle(0, 0, 16, 16),             // 64x112 -> 4 cols x 7 rows of 16x16
             ["Corrupt Bat"] = new Rectangle(0, 0, 16, 16),          // 64x112
             ["Dangerous Bat"] = new Rectangle(0, 0, 16, 16),        // 64x112
+            ["Badlands Serpent"] = new Rectangle(0, 0, 32, 32),     // BadlandsSerpent.png 160x96
+            ["Corrupt Mummy"] = new Rectangle(0, 0, 16, 32),        // CorruptMummy.png 64x160
+            ["Copper Crab"] = new Rectangle(0, 0, 16, 24),          // CopperCrab.png 64x144
             ["Green Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16),  // 64x48 -> 3 rows
             ["Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16),        // 64x48
             ["White Dust Spirit Dangerous"] = new Rectangle(0, 0, 16, 16), // 64x48
@@ -1552,8 +1562,8 @@ namespace LookupAnythingMobileSearch.Framework
             ["Wilderness Golem Winter"] = new Rectangle(0, 0, 16, 24),
             ["Apophis"] = new Rectangle(0, 0, 32, 32),              // 160x96 -> 5 cols x 3 rows of 32x32
             ["Royal Badlands Serpent"] = new Rectangle(0, 0, 32, 32), // 160x96
-            ["Bully Rex"] = new Rectangle(0, 0, 32, 32),            // 128x256 -> 4 cols x 8 rows of 32x32
-            ["Poltergeist"] = new Rectangle(0, 0, 32, 32),          // 128x256
+            ["Bully Rex"] = new Rectangle(0, 0, 32, 64),            // 128x256 - doubled height after "half top only" reported at 32x32
+            ["Poltergeist"] = new Rectangle(0, 0, 32, 64),          // 128x256 - same correction as Bully Rex
             ["Swamp Lurk"] = new Rectangle(0, 0, 16, 32),           // 64x32 -> single row of 32 tall
             ["Stygium Droplet"] = new Rectangle(0, 0, 16, 16),      // 112x80 (SnS's own convention)
             ["ES Mine Bat"] = new Rectangle(0, 0, 16, 16),          // 64x112, confirmed from actual sprite file
