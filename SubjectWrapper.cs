@@ -1544,6 +1544,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Shadow Shaman Dangerous"] = new Rectangle(0, 0, 16, 24), // 64x120 -> 5 rows of 24
             ["Skeleton Mage Dangerous"] = new Rectangle(0, 0, 16, 32), // 64x192 -> 6 rows of 32
             ["Skeleton Dangerous"] = new Rectangle(0, 0, 16, 32),      // 64x192
+            ["Shadow Brute Dangerous"] = new Rectangle(0, 0, 16, 32), // 64x256 raw -> 8 rows of 32
             ["Stone Golem Dangerous"] = new Rectangle(0, 0, 16, 24),   // 64x168 -> 7 rows of 24
             ["Wilderness Golem Spring"] = new Rectangle(0, 0, 16, 24), // 64x168
             ["Wilderness Golem Summer"] = new Rectangle(0, 0, 16, 24),
@@ -1556,7 +1557,7 @@ namespace LookupAnythingMobileSearch.Framework
             ["Swamp Lurk"] = new Rectangle(0, 0, 16, 32),           // 64x32 -> single row of 32 tall
             ["Stygium Droplet"] = new Rectangle(0, 0, 16, 16),      // 112x80 (SnS's own convention)
             ["ES Mine Bat"] = new Rectangle(0, 0, 16, 16),          // 64x112, confirmed from actual sprite file
-            ["ES Mine Bat Iridium"] = new Rectangle(0, 0, 16, 16),  // 64x112, confirmed from actual sprite file
+            ["ES Mine Bat Iridium"] = new Rectangle(0, 0, 16, 32),  // 64x112 - adjusted taller after user reported "top half only, offset down" with 16x16
             ["Legendary Gold Slime"] = new Rectangle(0, 0, 16, 24),          // LegendarySlime.png 64x168
             ["Legendary Sand Scorpion"] = new Rectangle(0, 0, 16, 24),       // LegendarySandScorpion.png 64x168
             ["Legendary Purple Mushroom Crab"] = new Rectangle(0, 0, 16, 24), // LegendaryPurpleMushroomCrab.png 64x144
@@ -1585,8 +1586,8 @@ namespace LookupAnythingMobileSearch.Framework
             ["Beast 2"] = new Rectangle(0, 0, 16, 32),               // RSVBeast2.png 64x256
             ["Beast 3"] = new Rectangle(0, 0, 16, 32),               // RSVBeast3.png 64x256
             ["Corrupted Spirit"] = new Rectangle(0, 0, 16, 24),      // RSVCorruptSpirit.png 64x120
-            ["Serperial"] = new Rectangle(0, 0, 32, 32),             // RSVSerperial.png 160x96, matches Apophis convention
-            ["Viperial"] = new Rectangle(0, 0, 32, 32),              // RSVViperial.png 128x256, matches Bully Rex convention
+            ["Serperial"] = new Rectangle(0, 0, 64, 64),             // RSVSerperial.png 160x96 - user confirmed 32x32 showed only top-left quarter
+            ["Viperial"] = new Rectangle(0, 0, 64, 64),              // RSVViperial.png 128x256 - same correction as Serperial
             ["Wraith"] = new Rectangle(0, 0, 16, 24),                // RSVWraith.png 64x216 -> 9 rows
         };
         private static readonly HashSet<string> _loggedModGroupTrace = new();

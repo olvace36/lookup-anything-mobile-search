@@ -734,6 +734,25 @@ namespace LookupAnythingMobileSearch
                                 // the real asset key, space included.
                                 "Armored Bug" => "Armored Bug",
                                 "Assassin Bug" => "Assassin Bug",
+                                // Internal display name has "-ed" but the
+                                // confirmed real sprite file on disk is
+                                // "RSVCorruptSpirit.png" (no "-ed").
+                                "Corrupted Spirit" => "RSVCorruptSpirit",
+                                // Confirmed real vanilla filenames (from
+                                // the game's own Content/Characters/
+                                // Monsters folder listing): dangerous-tier
+                                // variants use "{BaseName}_dangerous"
+                                // (underscore, not space) as their sprite
+                                // asset key.
+                                "Dangerous Bat" => "Bat_dangerous",
+                                "Shadow Brute Dangerous" => "Shadow Brute_dangerous",
+                                "Shadow Shaman Dangerous" => "Shadow Shaman_dangerous",
+                                "Stone Golem Dangerous" => "Stone Golem_dangerous",
+                                "Dangerous Metal Head" => "Metal Head_dangerous",
+                                "Skeleton Dangerous" => "Skeleton_dangerous",
+                                "Skeleton Mage Dangerous" => "Skeleton Mage_dangerous",
+                                "Evil Mummy" => "Mummy_dangerous",
+                                "Dust Spirit Dangerous" => "Dust Spirit_dangerous",
                                 _ => strippedKey,
                             };
                             var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
@@ -1185,6 +1204,10 @@ namespace LookupAnythingMobileSearch
                     // list uses stays completely untouched.
                     object? subjectToShow = subject;
                     var wrapped = SubjectWrapper.Create(subject);
+                    if (wrapped != null && wrapped.InternalName.StartsWith("Wilderness Golem"))
+                    {
+                        Monitor.Log($"[Diagnostic] Detail-view tap: wrapped.InternalName='{wrapped.InternalName}', wrapped.Name='{wrapped.Name}', wrapped.GetCategory()='{wrapped.GetCategory()}'", LogLevel.Debug);
+                    }
                     if (wrapped != null && wrapped.GetCategory() != "Monsters" && SubjectWrapper.NeedsVisualPriming(wrapped.InternalName))
                     {
                         try
