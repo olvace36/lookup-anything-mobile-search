@@ -786,6 +786,7 @@ namespace LookupAnythingMobileSearch
                     // to help both.
                     try { fake.Sprite.CurrentFrame = 0; } catch { }
                     try { fake.currentLocation = Game1.currentLocation; } catch { }
+                    Monitor.Log($"[Diagnostic] Right before GetSubjectFor: name='{name}', fake.GetType()={fake.GetType().FullName}, fake is Monster={fake is Monster}, fake is NPC={fake is NPC}", LogLevel.Debug);
                     object? subject = _bridge!.GetSubjectFor(fake);
                     if (subject != null) {
                         EnsureVariantInfoPatchApplied(subject);
