@@ -727,9 +727,13 @@ namespace LookupAnythingMobileSearch
                             string assetKey = name switch
                             {
                                 "Toxic Bubble (Weak Variant)" => "ToxicBubble_Variant",
-                                "ES Mine Bat Iridium" => "ESMineBatsIridium",
-                                "ES Mine Bat" => "ESMineBats",
+                                // Vanilla monster (not a mod asset) - no
+                                // Content Patcher Target/FromFile
+                                // remapping applies, so the confirmed
+                                // "Armored Bug.png" filename directly is
+                                // the real asset key, space included.
                                 "Armored Bug" => "Armored Bug",
+                                "Assassin Bug" => "Assassin Bug",
                                 _ => strippedKey,
                             };
                             var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
