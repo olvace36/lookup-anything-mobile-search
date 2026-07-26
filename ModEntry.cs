@@ -737,8 +737,12 @@ namespace LookupAnythingMobileSearch
                                 _ => strippedKey,
                             };
                             var tex = Game1.content.Load<Texture2D>($"Characters/Monsters/{assetKey}");
+                            Monitor.Log($"[Diagnostic] '{name}' tex load: tex={(tex == null ? "null" : $"{tex.Width}x{tex.Height}")}, fake.Sprite before={(fake.Sprite == null ? "null" : "set")}", LogLevel.Debug);
                             if (tex != null && fake.Sprite != null)
+                            {
                                 fake.Sprite = new AnimatedSprite($"Characters/Monsters/{assetKey}", 0, fake.Sprite.SpriteWidth, fake.Sprite.SpriteHeight);
+                                Monitor.Log($"[Diagnostic] '{name}' Sprite after assign: sprite={(fake.Sprite == null ? "null" : "set")}, texture={(fake.Sprite?.Texture == null ? "null" : "set")}", LogLevel.Debug);
+                            }
                         }
                         catch (Exception texEx)
                         {
